@@ -70,8 +70,8 @@ public class AccountingSystem2 extends JFrame {
     private final NumberFormat currencyFmt = NumberFormat.getCurrencyInstance(Locale.US);
     private final DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    public AccountingSystem() {
-        super("Accounting System");
+    public AccountingSystem2() {
+        setTitle("Accounting System");
         initDefaultAccounts();
         initUI();
         refreshAllTables();
