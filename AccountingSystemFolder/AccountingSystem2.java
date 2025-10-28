@@ -12,7 +12,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
 
-public class AccountingSystem2 extends JFrame {
+public class AccountingSystem extends JFrame {
     enum AccountType { ASSET, LIABILITY, EQUITY, INCOME, EXPENSE }
 
     static class Account {
@@ -70,8 +70,8 @@ public class AccountingSystem2 extends JFrame {
     private final NumberFormat currencyFmt = NumberFormat.getCurrencyInstance(Locale.US);
     private final DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    public AccountingSystem2() {
-        setTitle("Accounting System");
+    public AccountingSystem() {
+        super("Accounting System");
         initDefaultAccounts();
         initUI();
         refreshAllTables();
@@ -127,20 +127,20 @@ public class AccountingSystem2 extends JFrame {
 
         JLabel title = new JLabel("Accounting System");
         title.setForeground(Color.WHITE);
-        title.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        title.setFont(new Font("Segoe UI", Font.BOLD, 30));
         title.setBorder(new EmptyBorder(8, 16, 8, 8));
         header.add(title, BorderLayout.WEST);
 
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 10));
         right.setOpaque(false);
 
-        JButton addBtn = styledButton("＋  add");
+        JButton addBtn = styledButton("Add");
         addBtn.setToolTipText("Add Transaction");
         addBtn.addActionListener(e -> showNewTransactionTab());
-        JButton acctBtn = styledButton("accounts");
+        JButton acctBtn = styledButton("Accounts");
         acctBtn.setToolTipText("Manage Accounts");
         acctBtn.addActionListener(e -> showAccountsTab());
-        JButton helpBtn = styledButton("help");
+        JButton helpBtn = styledButton("Help?");
         helpBtn.addActionListener(e -> JOptionPane.showMessageDialog(this,
                 "Simple Accounting System\nDouble-entry transactions update account balances.\nUse tabs to navigate.",
                 "Help", JOptionPane.INFORMATION_MESSAGE));
@@ -159,7 +159,7 @@ public class AccountingSystem2 extends JFrame {
         b.setForeground(Color.WHITE);
         b.setFocusPainted(false);
         b.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
-        b.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        b.setFont(new Font("Segoe UI", Font.BOLD, 14));
         return b;
     }
 
@@ -168,7 +168,8 @@ public class AccountingSystem2 extends JFrame {
 
     private JComponent createMainTabbedPane() {
         tabbedPane = new JTabbedPane();
-        tabbedPane.setBorder(new EmptyBorder(8,8,8,8));
+        tabbedPane.setBorder(new EmptyBorder(8,10,8,10));
+        tabbedPane.setFont(new Font("Segoe UI", Font.BOLD, 14));
         newTransactionTab = createNewTransactionPanel();
         tabbedPane.addTab("New Transaction", newTransactionTab);
         tabbedPane.addTab("Transactions", createTransactionsPanel());
@@ -244,8 +245,8 @@ public class AccountingSystem2 extends JFrame {
         form.add(amountField, gbc);
 
         JPanel btns = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton postBtn = styledButton("Post Transaction");
-        JButton clearBtn = new JButton("Clear");
+        JButton postBtn = styledButton("Save Transaction");
+        JButton clearBtn = new JButton("Remove");
         clearBtn.setFocusPainted(false);
         clearBtn.addActionListener(e -> clearTransactionForm());
         postBtn.addActionListener(e -> postTransactionAction());
