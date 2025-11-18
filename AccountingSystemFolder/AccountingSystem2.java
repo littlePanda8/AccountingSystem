@@ -67,6 +67,8 @@ public class AccountingSystem extends JFrame {
         @Override public boolean isCellEditable(int row, int column) { return false; }
     };
 
+
+    @SuppressWarnings("deprecation")
     private final NumberFormat currencyFmt = NumberFormat.getCurrencyInstance(new Locale("en", "PH"));
     private final DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
