@@ -15,7 +15,7 @@ import java.util.List;
 /**
  * AccountingSystem3
  *
- * - Combines your second sample and improvements
+ * - Combines your second sample and requested improvements
  * - No "Remove" button in New Transaction tab
  * - "Remove Selected Account" in Accounts tab (prevents deletion if account used)
  * - Balance Sheet shows only accounts with transactions or non-zero balances
@@ -26,19 +26,21 @@ import java.util.List;
  *     2) Otherwise we attempt to guess by keywords
  *     3) When user explicitly adds a new account they can choose the type manually
  */
-public class AccountingSystem3 extends JFrame {
+public class AccountingSystem3_fixed extends JFrame {
 
     enum AccountType { ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE, UNKNOWN }
 
     static class Account {
-        final String name;
+        final String name;       // canonical name (no [TYPE] token)
         AccountType type;
         double balance;
         Account(String name, AccountType type) { this.name = name; this.type = type; this.balance = 0.0; }
     }
 
     static class Transaction {
-        final String date, description, debit, credit;
+        final String date, description;
+        final String debit;      // canonical names
+        final String credit;     // canonical names
         final double amount;
         Transaction(String date, String description, String debit, String credit, double amount) {
             this.date = date; this.description = description; this.debit = debit; this.credit = credit; this.amount = amount;
@@ -49,7 +51,7 @@ public class AccountingSystem3 extends JFrame {
     private final Map<String, Account> accounts = new LinkedHashMap<>();
     private final List<Transaction> transactions = new ArrayList<>();
 
-    // Suggested accounts
+    // Suggested accounts (with bracket tokens)
     private final String[] suggestedAccounts = {
         "Cash [ASSET]", "Petty Cash [ASSET]", "Accounts Receivable [ASSET]",
         "Notes Receivable [ASSET]", "Supplies [ASSET]", "Inventory [ASSET]",
@@ -103,8 +105,8 @@ public class AccountingSystem3 extends JFrame {
     private final Color accentBlue = new Color(30,100,180);
     private final Color white = Color.WHITE;
 
-    public AccountingSystem3() {
-        super("Accounting System 3");
+    public AccountingSystem3_fixed() {
+        super("Accounting System 3 (fixed)");
         initDefaults();
         initLookAndFeel();
         initUI();
@@ -115,9 +117,9 @@ public class AccountingSystem3 extends JFrame {
     }
 
     private void initDefaults(){
-        // populate accounts map from suggested list (name extracted before '[')
+        
         for(String s : suggestedAccounts) {
-            String name = s.contains("[") ? s.substring(0, s.indexOf('[')).trim() : s;
+            String name = s.contains("[") ? s.substring(0, s.indexOf('[')).trim() : s.trim();
             AccountType t = detectTypeFromBracket(s);
             if(t == AccountType.UNKNOWN) t = detectTypeByKeyword(name);
             accounts.putIfAbsent(name, new Account(name, t));
@@ -167,7 +169,7 @@ public class AccountingSystem3 extends JFrame {
         return tabs;
     }
 
-    // ---------------- New Transaction ----------------
+    // ---------------------- New Transaction ----------------
     private JComponent createNewTransactionPanel(){
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(softBlue);
@@ -212,7 +214,6 @@ public class AccountingSystem3 extends JFrame {
         JButton addBtn = new JButton("Add Transaction");
         addBtn.setBackground(accentBlue); addBtn.setForeground(white); addBtn.setFocusPainted(false);
         buttons.add(addBtn);
-        // NOTE: intentionally no "Remove" button here per request
         form.add(buttons, gbc);
 
         addBtn.addActionListener(e -> onAddTransaction());
@@ -224,67 +225,70 @@ public class AccountingSystem3 extends JFrame {
     private void onAddTransaction(){
         String date = dateField.getText().trim();
         String desc = descField.getText().trim();
-        String debit = Objects.toString(debitCombo.getEditor().getItem(),"").trim();
-        String credit = Objects.toString(creditCombo.getEditor().getItem(),"").trim();
+        String debitRaw = Objects.toString(debitCombo.getEditor().getItem(),"").trim();
+        String creditRaw = Objects.toString(creditCombo.getEditor().getItem(),"").trim();
 
         double amount;
         try { amount = ((Number) amountField.getValue()).doubleValue(); }
         catch (Exception ex) { JOptionPane.showMessageDialog(this,"Invalid amount.","Validation",JOptionPane.WARNING_MESSAGE); return; }
 
-        if(date.isEmpty() || desc.isEmpty() || debit.isEmpty() || credit.isEmpty()){
+        if(date.isEmpty() || desc.isEmpty() || debitRaw.isEmpty() || creditRaw.isEmpty()){
             JOptionPane.showMessageDialog(this,"Complete all fields.","Validation",JOptionPane.WARNING_MESSAGE); return;
         }
-        if(debit.equals(credit)){
+        if(canonicalize(debitRaw).equals(canonicalize(creditRaw))){
             JOptionPane.showMessageDialog(this,"Debit and Credit cannot be the same.","Validation",JOptionPane.WARNING_MESSAGE); return;
         }
         try { LocalDate.parse(date, dateFmt); }
         catch(Exception ex){ JOptionPane.showMessageDialog(this,"Invalid date format. Use YYYY-MM-DD.","Validation",JOptionPane.WARNING_MESSAGE); return; }
 
-        // hybrid account creation & type detection:
-        ensureAccountExistsWithHybridType(debit);
-        ensureAccountExistsWithHybridType(credit);
+        // canonical names (strip any [TYPE] token)
+        String debit = canonicalize(debitRaw);
+        String credit = canonicalize(creditRaw);
+
+        // ensure accounts exist; hybrid type detection uses raw for bracket if present
+        ensureAccountExistsWithHybridType(debitRaw);  // will canonicalize inside as needed
+        ensureAccountExistsWithHybridType(creditRaw);
 
         Transaction tx = new Transaction(date, desc, debit, credit, amount);
         transactions.add(tx);
 
-        // recompute balances
+        // recompute balances & refresh models
         recomputeBalances();
-
-        // update table models
         transModel.addRow(new Object[]{tx.date, tx.description, tx.debit, tx.credit, currencyFmt.format(tx.amount)});
         journalModel.addRow(new Object[]{tx.date, tx.description, tx.debit, currencyFmt.format(tx.amount), ""});
         journalModel.addRow(new Object[]{tx.date, tx.description, tx.credit, "", currencyFmt.format(tx.amount)});
 
         refreshAllViews();
 
-        // reset small fields
+        // reset form
         descField.setText("");
         amountField.setValue(0.0);
         dateField.setText(dateFmt.format(LocalDate.now()));
     }
 
-    private void ensureAccountExistsWithHybridType(String rawName){
-        // if user includes [TYPE], respect it; else try keywords; else default to ASSET
-        String name = rawName;
-        AccountType bracket = detectTypeFromBracket(rawName);
-        if(bracket != AccountType.UNKNOWN){
-            // strip bracket for internal name (consistent keys)
-            int idx = rawName.indexOf('[');
-            if(idx>0) name = rawName.substring(0, idx).trim();
-        } else {
-            // name stays as typed
-            name = rawName;
-        }
+    private String canonicalize(String raw){
+        if(raw == null) return "";
+        String r = raw.trim();
+        int idx = r.indexOf('[');
+        if(idx >= 0) r = r.substring(0, idx).trim();
+        return r;
+    }
 
-        if(!accounts.containsKey(name)){
-            AccountType guessed = bracket != AccountType.UNKNOWN ? bracket : detectTypeByKeyword(name);
-            if(guessed == AccountType.UNKNOWN) guessed = AccountType.ASSET; // fallback
-            accounts.put(name, new Account(name, guessed));
+    private void ensureAccountExistsWithHybridType(String rawName){
+        if(rawName == null) return;
+        String trimmed = rawName.trim();
+        AccountType bracket = detectTypeFromBracket(trimmed);
+        String canonical = canonicalize(trimmed);
+
+        if(!accounts.containsKey(canonical)){
+            AccountType guessed = bracket != AccountType.UNKNOWN ? bracket : detectTypeByKeyword(canonical);
+            if(guessed == AccountType.UNKNOWN) guessed = AccountType.ASSET; // safe fallback
+            accounts.put(canonical, new Account(canonical, guessed));
             updateComboModels();
         } else {
-            // if bracket present and differs, allow update to type (only if bracket specified)
+            // if bracket present and differs, update the stored account type
             if(bracket != AccountType.UNKNOWN){
-                Account a = accounts.get(name);
+                Account a = accounts.get(canonical);
                 if(a != null && a.type != bracket) a.type = bracket;
             }
         }
@@ -292,12 +296,12 @@ public class AccountingSystem3 extends JFrame {
 
     private AccountType detectTypeFromBracket(String s){
         if(s == null) return AccountType.UNKNOWN;
-        s = s.toUpperCase();
-        if(s.contains("[ASSET]")) return AccountType.ASSET;
-        if(s.contains("[LIABILITY]")) return AccountType.LIABILITY;
-        if(s.contains("[EQUITY]")) return AccountType.EQUITY;
-        if(s.contains("[REVENUE]")) return AccountType.REVENUE;
-        if(s.contains("[EXPENSE]")) return AccountType.EXPENSE;
+        String u = s.toUpperCase();
+        if(u.contains("[ASSET]")) return AccountType.ASSET;
+        if(u.contains("[LIABILITY]")) return AccountType.LIABILITY;
+        if(u.contains("[EQUITY]")) return AccountType.EQUITY;
+        if(u.contains("[REVENUE]")) return AccountType.REVENUE;
+        if(u.contains("[EXPENSE]")) return AccountType.EXPENSE;
         return AccountType.UNKNOWN;
     }
 
@@ -313,7 +317,7 @@ public class AccountingSystem3 extends JFrame {
     }
 
     private void recomputeBalances(){
-        // reset balances
+        // reset
         for(Account a : accounts.values()) a.balance = 0.0;
         // apply transactions in insertion order
         for(Transaction tx : transactions){
@@ -330,7 +334,7 @@ public class AccountingSystem3 extends JFrame {
         }
     }
 
-    // ---------------- Transactions Tab ----------------
+    // ---------------------- Transactions Tab ----------------
     private JComponent createTransactionsPanel(){
         JPanel p = new JPanel(new BorderLayout());
         transTable = new JTable(transModel);
@@ -339,7 +343,7 @@ public class AccountingSystem3 extends JFrame {
         return p;
     }
 
-    // ---------------- Accounts Tab ----------------
+    // --------------------- Accounts Tab ----------------
     private JComponent createAccountsPanel(){
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(softBlue);
@@ -371,10 +375,11 @@ public class AccountingSystem3 extends JFrame {
         Object[] fields = {"Account name:", name, "Account type:", typeBox};
         int res = JOptionPane.showConfirmDialog(this, fields, "Add Account", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if(res == JOptionPane.OK_OPTION){
-            String nm = name.getText().trim();
-            if(nm.isEmpty()){ JOptionPane.showMessageDialog(this,"Name required.","Validation",JOptionPane.WARNING_MESSAGE); return; }
-            if(accounts.containsKey(nm)){ JOptionPane.showMessageDialog(this,"Account already exists.","Validation",JOptionPane.WARNING_MESSAGE); return; }
-            accounts.put(nm, new Account(nm, (AccountType) typeBox.getSelectedItem()));
+            String raw = name.getText().trim();
+            if(raw.isEmpty()){ JOptionPane.showMessageDialog(this,"Name required.","Validation",JOptionPane.WARNING_MESSAGE); return; }
+            String canonical = canonicalize(raw);
+            if(accounts.containsKey(canonical)){ JOptionPane.showMessageDialog(this,"Account already exists.","Validation",JOptionPane.WARNING_MESSAGE); return; }
+            accounts.put(canonical, new Account(canonical, (AccountType) typeBox.getSelectedItem()));
             updateComboModels();
             refreshAllViews();
         }
@@ -397,7 +402,7 @@ public class AccountingSystem3 extends JFrame {
         }
     }
 
-    // ---------------- Journal Tab ----------------
+    // ---------------------- Journal Tab ----------------
     private JComponent createJournalPanel(){
         JPanel p = new JPanel(new BorderLayout());
         journalTable = new JTable(journalModel);
@@ -407,7 +412,7 @@ public class AccountingSystem3 extends JFrame {
         return p;
     }
 
-    // ---------------- Ledger Tab ----------------
+    // ---------------------- Ledger Tab ----------------
     private JComponent createLedgerPanel(){
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(softBlue);
@@ -463,7 +468,7 @@ public class AccountingSystem3 extends JFrame {
         }
     }
 
-    // ---------------- Balance Sheet ----------------
+    // ---------------------- Balance Sheet ----------------
     private JComponent createBalancePanel(){
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(softBlue);
@@ -480,7 +485,7 @@ public class AccountingSystem3 extends JFrame {
         return p;
     }
 
-    // ---------------- Utilities ----------------
+    // -------------------- Utilities ----------------
     private void configureRightAlign(JTable t, int col){
         if(t.getColumnModel().getColumnCount() > col){
             DefaultTableCellRenderer r = new DefaultTableCellRenderer();
@@ -514,7 +519,7 @@ public class AccountingSystem3 extends JFrame {
         }
         if(ledgerList != null) ledgerList.setModel(lm);
 
-        // transactions table (already appended on add, but rebuild to be safe)
+        // transactions table
         transModel.setRowCount(0);
         for(Transaction t : transactions) transModel.addRow(new Object[]{t.date, t.description, t.debit, t.credit, currencyFmt.format(t.amount)});
 
@@ -547,14 +552,14 @@ public class AccountingSystem3 extends JFrame {
         leModel.addRow(new Object[]{"", ""});
         leModel.addRow(new Object[]{"Total Liabilities & Equity", currencyFmt.format(totalLE)});
 
-        // ensure combos updated
+        // ensure combos are updated
         updateComboModels();
     }
 
-    // ---------------- Main ----------------
+    // ---------------- Main ----------------------
     public static void main(String[] args){
         SwingUtilities.invokeLater(() -> {
-            AccountingSystem3 app = new AccountingSystem3();
+            AccountingSystem3_fixed app = new AccountingSystem3_fixed();
             app.setVisible(true);
         });
     }
