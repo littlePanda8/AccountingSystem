@@ -3,26 +3,54 @@ import javax.swing.border.*;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import javax.swing.table.*;
 import java.awt.*;
+import java.text.DecimalFormat;
 import java.text.NumberFormat;
 
 public class AccountingSystem extends JFrame {
 
-    private static final Color HEADER_GREEN = new Color(21, 120, 55);           
-    private static final Color TAB_SELECTED = new Color(34, 139, 70);          
-    private static final Color TAB_UNSELECTED = new Color(225, 238, 230);      
-    private static final Color PANEL_BG = new Color(235, 247, 237);            
+    private static final Color BTN_GREEN = new Color(21, 120, 55);       
+    private static final Color BTN_GREEN_HOVER = new Color(34, 180, 90); 
+    private static final Color BTN_RED = new Color(200, 40, 40);
+    private static final Color BTN_RED_HOVER = new Color(230, 60, 60);
+    private static final Color HEADER_GREEN = new Color(21, 120, 55);
+    private static final Color TAB_SELECTED = new Color(34, 139, 70);
+    private static final Color TAB_UNSELECTED = new Color(225, 238, 230);
+    private static final Color PANEL_BG = new Color(235, 247, 237);
     private static final Color TABLE_ALT_ROW = new Color(244, 252, 244);
     private static final Color TABLE_ROW = new Color(255, 255, 255);
     private static final Color TABLE_HEADER_BG = new Color(194, 225, 200);
-    private static final Color TABLE_SELECTION = new Color(34, 139, 70);       
+    private static final Color TABLE_SELECTION = new Color(34, 139, 70);
+
+    private final DefaultTableModel transactionsModel;
+    private final DefaultTableModel accountsModel;
+    private final DefaultTableModel journalModel;
+    private final DefaultTableModel ledgerModel;
+    private final DefaultTableModel balanceLeftModel;   
+    private final DefaultTableModel balanceRightModel;  
+
+    private final DecimalFormat moneyFmt = new DecimalFormat("\u20B1#,##0.00");
 
     public AccountingSystem() {
-        
+
         super("Accounting System");
 
-        UIManager.put("List.background", new Color(235, 247, 237));        
+        transactionsModel = new DefaultTableModel(new String[]{"Date", "Description", "Debit", "Credit", "Amount"}, 0);
+        accountsModel = new DefaultTableModel(new String[]{"Account", "Type", "Balance"}, 0);
+        journalModel = new DefaultTableModel(new String[]{"Date", "Description", "Account", "Debit", "Credit"}, 0);
+        ledgerModel = new DefaultTableModel(new String[]{"Date", "Description", "Debit", "Credit", "Running"}, 0);
+        balanceLeftModel = new DefaultTableModel(new String[]{"Asset", "Amount"}, 0);
+        balanceRightModel = new DefaultTableModel(new String[]{"Liability/Equity", "Amount"}, 0);
+
+        for (String s : sampleAccounts()) {
+            String type = deduceAccountType(s);
+            accountsModel.addRow(new Object[]{s, type, moneyFmt.format(0.0)});
+        }
+        balanceLeftModel.addRow(new Object[]{"Total Assets", moneyFmt.format(0.0)});
+        balanceRightModel.addRow(new Object[]{"Total Liabilities & Equity", moneyFmt.format(0.0)});
+
+        UIManager.put("List.background", new Color(235, 247, 237));
         UIManager.put("List.foreground", Color.BLACK);
-        UIManager.put("List.selectionBackground", new Color(34, 139, 70)); 
+        UIManager.put("List.selectionBackground", new Color(34, 139, 70));
         UIManager.put("List.selectionForeground", Color.WHITE);
 
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -44,7 +72,7 @@ public class AccountingSystem extends JFrame {
         tabs.setUI(new GreenTabbedPaneUI());
         tabs.setBackground(TAB_UNSELECTED);
         tabs.setBorder(new CompoundBorder(new MatteBorder(2, 0, 0, 0, new Color(120, 120, 120)), new EmptyBorder(4, 4, 4, 4)));
-        tabs.setFont(new Font("Segio UI", Font.PLAIN, 13));
+        tabs.setFont(new Font("Segoe UI", Font.BOLD, 13)); 
 
         tabs.addTab("New Transaction", createNewTransactionPanel());
         tabs.addTab("Transactions", createTransactionsPanel());
@@ -60,7 +88,7 @@ public class AccountingSystem extends JFrame {
 
     private void applyUIManagerTheme() {
         UIManager.put("Table.background", TABLE_ROW);
-        UIManager.put("Table.alternateRowColor", TABLE_ALT_ROW); 
+        UIManager.put("Table.alternateRowColor", TABLE_ALT_ROW);
         UIManager.put("Table.selectionBackground", TABLE_SELECTION);
         UIManager.put("Table.selectionForeground", Color.WHITE);
         UIManager.put("TableHeader.background", TABLE_HEADER_BG);
@@ -86,7 +114,7 @@ public class AccountingSystem extends JFrame {
 
         JLabel heading = new JLabel("Add New Transaction");
         heading.setFont(new Font("SansSerif", Font.BOLD, 23));
-        heading.setForeground(new Color(34, 139, 70)); 
+        heading.setForeground(new Color(34, 139, 70));
         heading.setHorizontalAlignment(SwingConstants.CENTER);
 
         JPanel headingWrapper = new JPanel(new BorderLayout());
@@ -107,14 +135,14 @@ public class AccountingSystem extends JFrame {
         p.add(makeLabel("Date (YYYY-MM-DD)"), gbc);
         gbc.gridy++;
         JTextField dateField = new JTextField("2025-11-26");
-        dateField.setPreferredSize(new Dimension(1000, 30));
+        dateField.setPreferredSize(new Dimension(1000, 25));
         p.add(dateField, gbc);
 
         gbc.gridy++;
         p.add(makeLabel("Description"), gbc);
         gbc.gridy++;
         JTextField desc = new JTextField();
-        desc.setPreferredSize(new Dimension(1000, 30));
+        desc.setPreferredSize(new Dimension(1000, 25));
         p.add(desc, gbc);
 
         gbc.gridy++;
@@ -122,8 +150,8 @@ public class AccountingSystem extends JFrame {
         gbc.gridy++;
         JComboBox<String> debit = new JComboBox<>(sampleAccounts());
         styleLargeComboBox(debit);
-        applyComboPopupRenderer(debit); 
-        debit.setPreferredSize(new Dimension(1000, 30));
+        applyComboPopupRenderer(debit);
+        debit.setPreferredSize(new Dimension(1000, 25));
         p.add(debit, gbc);
 
         gbc.gridy++;
@@ -131,8 +159,8 @@ public class AccountingSystem extends JFrame {
         gbc.gridy++;
         JComboBox<String> credit = new JComboBox<>(sampleAccounts());
         styleLargeComboBox(credit);
-        applyComboPopupRenderer(credit); 
-        credit.setPreferredSize(new Dimension(1000, 30));
+        applyComboPopupRenderer(credit);
+        credit.setPreferredSize(new Dimension(1000, 25));
         p.add(credit, gbc);
 
         gbc.gridy++;
@@ -141,20 +169,70 @@ public class AccountingSystem extends JFrame {
         JFormattedTextField amount = new JFormattedTextField(NumberFormat.getNumberInstance());
         amount.setText("0");
         amount.setColumns(20);
-        amount.setPreferredSize(new Dimension(1000, 30));
+        amount.setPreferredSize(new Dimension(1000, 25));
         p.add(amount, gbc);
 
         gbc.gridy++;
         gbc.anchor = GridBagConstraints.LINE_END;
         gbc.gridwidth = GridBagConstraints.REMAINDER;
-        gbc.fill = GridBagConstraints.NONE;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(18, 40, 18, 40);
-        
+
         JButton addBtn = new JButton("Add Transaction");
-        addBtn.setBackground(new Color(0, 128, 0));
-        amount.setPreferredSize(new Dimension(1000, 30));
-        addBtn.setForeground(Color.BLACK);
+        addBtn.setBackground(HEADER_GREEN);
+        addBtn.setForeground(Color.WHITE);
+        addBtn.setOpaque(true);
         addBtn.setFocusPainted(false);
+        addBtn.setBorderPainted(false);
+        addBtn.setPreferredSize(new Dimension(1000, 25));
+        addBtn.setFont(new Font("Segoe UI", Font.BOLD, 12)); 
+        addHoverEffect(addBtn);
+
+        addBtn.addActionListener(e -> {
+            String date = dateField.getText().trim();
+            String description = desc.getText().trim();
+            String debitAcc = (String) debit.getSelectedItem();
+            String creditAcc = (String) credit.getSelectedItem();
+            double amt;
+            try {
+                amt = Double.parseDouble(amount.getText().replace(",", ""));
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Invalid amount. Enter numeric value.");
+                return;
+            }
+
+            if (date.isEmpty() || description.isEmpty() || debitAcc == null || creditAcc == null) {
+                JOptionPane.showMessageDialog(this, "Please complete all fields.");
+                return;
+            }
+            if (amt <= 0) {
+                JOptionPane.showMessageDialog(this, "Amount must be greater than zero.");
+                return;
+            }
+            if (debitAcc.equals(creditAcc)) {
+                int ok = JOptionPane.showConfirmDialog(this, "Debit and credit accounts are the same. Continue?", "Confirm", JOptionPane.YES_NO_OPTION);
+                if (ok != JOptionPane.YES_OPTION) return;
+            }
+
+            transactionsModel.addRow(new Object[]{date, description, debitAcc, creditAcc, moneyFmt.format(amt)});
+
+            journalModel.addRow(new Object[]{date, description, debitAcc, moneyFmt.format(amt), ""});
+            journalModel.addRow(new Object[]{date, description, creditAcc, "", moneyFmt.format(amt)});
+
+            adjustAccountBalance(debitAcc, amt, true);  
+            adjustAccountBalance(creditAcc, amt, false); 
+
+            double runningAfterDebit = getAccountNumericBalance(debitAcc);
+            ledgerModel.addRow(new Object[]{date, description + " (" + debitAcc + ")", moneyFmt.format(amt), "", moneyFmt.format(runningAfterDebit)});
+            double runningAfterCredit = getAccountNumericBalance(creditAcc);
+            ledgerModel.addRow(new Object[]{date, description + " (" + creditAcc + ")", "", moneyFmt.format(amt), moneyFmt.format(runningAfterCredit)});
+
+            updateBalanceSheetTotals();
+
+            desc.setText("");
+            amount.setText("0");
+        });
+
         p.add(addBtn, gbc);
 
         return p;
@@ -164,8 +242,7 @@ public class AccountingSystem extends JFrame {
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(PANEL_BG);
 
-        String[] cols = {"Date", "Description", "Debit", "Credit", "Amount"};
-        JTable table = makeStyledTable(new DefaultTableModel(cols, 0));
+        JTable table = makeStyledTable(transactionsModel);
         JScrollPane sc = new JScrollPane(table);
         sc.setBorder(new EmptyBorder(12, 12, 12, 12));
         p.add(sc, BorderLayout.CENTER);
@@ -179,34 +256,40 @@ public class AccountingSystem extends JFrame {
         JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
         bottom.setOpaque(false);
         JButton add = new JButton("Add Account");
-        add.setBackground(new Color(0, 128, 0));
-        add.setForeground(Color.BLACK);
+        add.setBackground(HEADER_GREEN);
+        add.setForeground(Color.WHITE);
+        add.setOpaque(true);
+        add.setFocusPainted(false);
+        add.setBorderPainted(false);
+        add.setPreferredSize(new Dimension(100, 25));
+        addHoverEffect(add);
+        
         JButton remove = new JButton("Remove Selected Account");
         remove.setBackground(new Color(220, 70, 70));
-        remove.setForeground(Color.BLACK);
+        remove.setForeground(Color.WHITE);
+        remove.setOpaque(true);
+        remove.setBorderPainted(false);
+        remove.setPreferredSize(new Dimension(150, 25));
         bottom.add(add);
         bottom.add(remove);
+        styleRemoveButton(remove);
         p.add(bottom, BorderLayout.SOUTH);
 
-        String[] cols = {"Account", "Type", "Balance"};
-        DefaultTableModel model = new DefaultTableModel(cols, 0);
-        for (String s : sampleAccounts()) {
-            model.addRow(new Object[]{s, "ASSET", "\u20B1" + "0.00"});
-        }
-        JTable table = makeStyledTable(model);
+        JTable table = makeStyledTable(accountsModel);
         JScrollPane sc = new JScrollPane(table);
         sc.setBorder(new EmptyBorder(8, 8, 8, 8));
         p.add(sc, BorderLayout.CENTER);
 
         add.addActionListener(e -> {
-            model.addRow(new Object[]{"New Account", "ASSET", "\u20B1" + "0.00"});
-            int r = model.getRowCount() - 1;
+            accountsModel.addRow(new Object[]{"New Account", "ASSET", moneyFmt.format(0.0)});
+            int r = accountsModel.getRowCount() - 1;
             table.setRowSelectionInterval(r, r);
         });
         remove.addActionListener(e -> {
             int sel = table.getSelectedRow();
             if (sel >= 0) {
-                model.removeRow(sel);
+                accountsModel.removeRow(sel);
+                updateBalanceSheetTotals();
             } else {
                 JOptionPane.showMessageDialog(this, "Select an account row to remove (UI-only).");
             }
@@ -215,11 +298,14 @@ public class AccountingSystem extends JFrame {
         return p;
     }
 
+    private Dimension Dimension(int i, int j) {
+        throw new UnsupportedOperationException("Unimplemented method 'Dimension'");
+    }
+
     private JPanel createBlankJournalPanel() {
         JPanel p = new JPanel(new BorderLayout());
         p.setBackground(PANEL_BG);
-        String[] cols = {"Date", "Description", "Account", "Debit", "Credit"};
-        JTable table = makeStyledTable(new DefaultTableModel(cols, 0));
+        JTable table = makeStyledTable(journalModel);
         p.add(new JScrollPane(table), BorderLayout.CENTER);
         return p;
     }
@@ -234,20 +320,22 @@ public class AccountingSystem extends JFrame {
         split.setBorder(null);
 
         DefaultListModel<String> listModel = new DefaultListModel<>();
-        for (String s : sampleAccounts()) {
-            listModel.addElement(s + " (ASSET) — \u20B1" + "0.00");
+        for (int i = 0; i < accountsModel.getRowCount(); i++) {
+            String acct = (String) accountsModel.getValueAt(i, 0);
+            String type = (String) accountsModel.getValueAt(i, 1);
+            String bal = (String) accountsModel.getValueAt(i, 2);
+            listModel.addElement(acct + " (" + type + ") — " + bal);
         }
         JList<String> list = new JList<>(listModel);
         list.setSelectionBackground(TABLE_SELECTION);
         list.setSelectionForeground(Color.WHITE);
         list.setFont(new Font("SansSerif", Font.PLAIN, 13));
-        list.setBorder(new EmptyBorder(8,8,8,8));
+        list.setBorder(new EmptyBorder(8, 8, 8, 8));
         JScrollPane leftScroll = new JScrollPane(list);
-        leftScroll.setBorder(new CompoundBorder(new EmptyBorder(6,6,6,6), new LineBorder(new Color(160,160,160))));
+        leftScroll.setBorder(new CompoundBorder(new EmptyBorder(6, 6, 6, 6), new LineBorder(new Color(160, 160, 160))));
         split.setLeftComponent(leftScroll);
 
-        String[] cols = {"Date", "Description", "Debit", "Credit", "Running"};
-        JTable table = makeStyledTable(new DefaultTableModel(cols, 0));
+        JTable table = makeStyledTable(ledgerModel);
         split.setRightComponent(new JScrollPane(table));
 
         p.add(split, BorderLayout.CENTER);
@@ -262,24 +350,19 @@ public class AccountingSystem extends JFrame {
         JPanel left = new JPanel(new BorderLayout());
         left.setBackground(PANEL_BG);
         JLabel lLabel = new JLabel("Assets");
-        lLabel.setBorder(new EmptyBorder(6,6,6,6));
+        lLabel.setBorder(new EmptyBorder(6, 6, 6, 6));
         lLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
         left.add(lLabel, BorderLayout.NORTH);
-        String[] cols = {"Asset", "Amount"};
-        DefaultTableModel leftModel = new DefaultTableModel(cols, 0);
-        leftModel.addRow(new Object[]{"Total Assets", "\u20B1" + "0.00"});
-        JTable leftTable = makeStyledTable(leftModel);
+        JTable leftTable = makeStyledTable(balanceLeftModel);
         left.add(new JScrollPane(leftTable), BorderLayout.CENTER);
 
         JPanel right = new JPanel(new BorderLayout());
         right.setBackground(PANEL_BG);
         JLabel rLabel = new JLabel("Liabilities & Equity");
-        rLabel.setBorder(new EmptyBorder(6,6,6,6));
+        rLabel.setBorder(new EmptyBorder(6, 6, 6, 6));
         rLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
         right.add(rLabel, BorderLayout.NORTH);
-        DefaultTableModel rightModel = new DefaultTableModel(cols, 0);
-        rightModel.addRow(new Object[]{"Total Liabilities & Equity", "\u20B1" + "0.00"});
-        JTable rightTable = makeStyledTable(rightModel);
+        JTable rightTable = makeStyledTable(balanceRightModel);
         right.add(new JScrollPane(rightTable), BorderLayout.CENTER);
 
         p.add(left);
@@ -302,28 +385,28 @@ public class AccountingSystem extends JFrame {
         combo.setBackground(Color.WHITE);
         combo.setBorder(new CompoundBorder(new LineBorder(new Color(180, 180, 180)), new EmptyBorder(3, 6, 3, 6)));
     }
-    
-private void applyComboPopupRenderer(JComboBox<String> combo) {
-    combo.setRenderer(new DefaultListCellRenderer() {
-        @Override
-        public Component getListCellRendererComponent(JList<?> list, Object value,
-                                                      int index, boolean isSelected,
-                                                      boolean cellHasFocus) {
 
-            Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+    private void applyComboPopupRenderer(JComboBox<String> combo) {
+        combo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value,
+                                                          int index, boolean isSelected,
+                                                          boolean cellHasFocus) {
 
-            if (isSelected) {
-                c.setBackground(new Color(34, 139, 70));   
-                c.setForeground(Color.WHITE);
-            } else {
-                c.setBackground(new Color(235, 247, 237)); 
-                c.setForeground(Color.BLACK);
+                Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+
+                if (isSelected) {
+                    c.setBackground(new Color(34, 139, 70));
+                    c.setForeground(Color.WHITE);
+                } else {
+                    c.setBackground(new Color(235, 247, 237));
+                    c.setForeground(Color.BLACK);
+                }
+
+                return c;
             }
-
-            return c;
-        }
-    });
-}
+        });
+    }
 
     private JTable makeStyledTable(TableModel model) {
         JTable table = new JTable(model);
@@ -356,9 +439,11 @@ private void applyComboPopupRenderer(JComboBox<String> combo) {
 
     private class HeaderRenderer implements TableCellRenderer {
         private final TableCellRenderer delegate;
+
         HeaderRenderer(TableCellRenderer delegate) {
             this.delegate = delegate;
         }
+
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value,
                                                        boolean isSelected, boolean hasFocus, int row, int column) {
@@ -411,7 +496,7 @@ private void applyComboPopupRenderer(JComboBox<String> combo) {
             if (isSelected) {
                 g2.setColor(TAB_SELECTED);
             } else {
-                g2.setColor(new Color(245, 250, 245)); 
+                g2.setColor(new Color(245, 250, 245));
             }
 
             g2.fillRoundRect(x + 2, y + 1, w - 4, h - 2, arc, arc);
@@ -461,10 +546,118 @@ private void applyComboPopupRenderer(JComboBox<String> combo) {
         }
     }
 
+
+    private String deduceAccountType(String accountName) {
+        String name = accountName.toLowerCase();
+        if (name.contains("payable") || name.contains("notes payable") || name.contains("liab")) return "LIABILITY";
+        if (name.contains("capital") || name.contains("retained") || name.contains("equity") || name.contains("owner")) return "EQUITY";
+        if (name.contains("revenue") || name.contains("sales") || name.contains("service")) return "REVENUE";
+        if (name.contains("expense") || name.contains("rent") || name.contains("utilities") || name.contains("salar")) return "EXPENSE";
+        return "ASSET";
+    }
+
+    private void adjustAccountBalance(String accountName, double amount, boolean isDebit) {
+        for (int i = 0; i < accountsModel.getRowCount(); i++) {
+            String acct = (String) accountsModel.getValueAt(i, 0);
+            if (acct.equals(accountName)) {
+                String type = (String) accountsModel.getValueAt(i, 1);
+                double current = parseMoney((String) accountsModel.getValueAt(i, 2));
+                double updated;
+                if ("ASSET".equals(type) || "EXPENSE".equals(type)) {
+                    updated = isDebit ? (current + amount) : (current - amount);
+                } else { 
+                    updated = isDebit ? (current - amount) : (current + amount);
+                }
+                accountsModel.setValueAt(moneyFmt.format(updated), i, 2);
+                return;
+            }
+        }
+        double val = isDebit ? amount : -amount;
+        accountsModel.addRow(new Object[]{accountName, "ASSET", moneyFmt.format(val)});
+    }
+
+    private double parseMoney(String moneyString) {
+        try {
+            String cleaned = moneyString.replace("\u20B1", "").replace(",", "").trim();
+            return Double.parseDouble(cleaned);
+        } catch (Exception ex) {
+            return 0.0;
+        }
+    }
+
+    private double getAccountNumericBalance(String accountName) {
+        for (int i = 0; i < accountsModel.getRowCount(); i++) {
+            String acct = (String) accountsModel.getValueAt(i, 0);
+            if (acct.equals(accountName)) {
+                return parseMoney((String) accountsModel.getValueAt(i, 2));
+            }
+        }
+        return 0.0;
+    }
+
+    private void updateBalanceSheetTotals() {
+        double totalAssets = 0.0;
+        double totalLiabEq = 0.0;
+        for (int i = 0; i < accountsModel.getRowCount(); i++) {
+            String type = (String) accountsModel.getValueAt(i, 1);
+            double bal = parseMoney((String) accountsModel.getValueAt(i, 2));
+            if ("ASSET".equals(type)) totalAssets += bal;
+            else if ("LIABILITY".equals(type)) totalLiabEq += bal;
+            else if ("EQUITY".equals(type)) totalLiabEq += bal;
+            else if ("REVENUE".equals(type)) totalLiabEq += bal;
+            else if ("EXPENSE".equals(type)) totalAssets += bal; 
+            else totalAssets += bal; 
+        }
+        if (balanceLeftModel.getRowCount() == 0) balanceLeftModel.addRow(new Object[]{"Total Assets", moneyFmt.format(totalAssets)});
+        else balanceLeftModel.setValueAt(moneyFmt.format(totalAssets), 0, 1);
+
+        if (balanceRightModel.getRowCount() == 0) balanceRightModel.addRow(new Object[]{"Total Liabilities & Equity", moneyFmt.format(totalLiabEq)});
+        else balanceRightModel.setValueAt(moneyFmt.format(totalLiabEq), 0, 1);
+    }
+
+    private void addHoverEffect(JButton btn) {
+    btn.setBackground(BTN_GREEN);
+    btn.setForeground(Color.WHITE);
+    btn.setFocusPainted(false);
+    btn.setBorder(BorderFactory.createLineBorder(new Color(15, 90, 40), 2));
+
+    btn.addMouseListener(new java.awt.event.MouseAdapter() {
+        @Override
+        public void mouseEntered(java.awt.event.MouseEvent evt) {
+            btn.setBackground(BTN_GREEN_HOVER); // highlight on hover
+        }
+
+        @Override
+        public void mouseExited(java.awt.event.MouseEvent evt) {
+            btn.setBackground(BTN_GREEN); // return to normal when mouse leaves
+        }
+    });
+}
+private void styleRemoveButton(JButton btn) {
+    btn.setBackground(BTN_RED);
+    btn.setForeground(Color.WHITE);
+    btn.setFocusPainted(false);
+    btn.setBorder(BorderFactory.createLineBorder(new Color(150, 20, 20), 2));
+
+    btn.addMouseListener(new java.awt.event.MouseAdapter() {
+        @Override
+        public void mouseEntered(java.awt.event.MouseEvent evt) {
+            btn.setBackground(BTN_RED_HOVER); 
+        }
+
+        @Override
+        public void mouseExited(java.awt.event.MouseEvent evt) {
+            btn.setBackground(BTN_RED); 
+        }
+    });
+}
+
+
     public static void main(String[] args) {
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
 
         SwingUtilities.invokeLater(() -> {
             AccountingSystem ui = new AccountingSystem();
@@ -472,4 +665,3 @@ private void applyComboPopupRenderer(JComboBox<String> combo) {
         });
     }
 }
-
