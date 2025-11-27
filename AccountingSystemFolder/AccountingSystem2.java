@@ -261,7 +261,8 @@ public class AccountingSystem extends JFrame {
         add.setOpaque(true);
         add.setFocusPainted(false);
         add.setBorderPainted(false);
-        add.setPreferredSize(new Dimension(100, 25));
+        add.setPreferredSize(new Dimension(110, 25));
+        add.setFont(new Font("Segoe UI", Font.BOLD, 12)); 
         addHoverEffect(add);
         
         JButton remove = new JButton("Remove Selected Account");
@@ -269,7 +270,8 @@ public class AccountingSystem extends JFrame {
         remove.setForeground(Color.WHITE);
         remove.setOpaque(true);
         remove.setBorderPainted(false);
-        remove.setPreferredSize(new Dimension(150, 25));
+        remove.setPreferredSize(new Dimension(170, 25));
+        remove.setFont(new Font("Segoe UI", Font.BOLD, 12));
         bottom.add(add);
         bottom.add(remove);
         styleRemoveButton(remove);
