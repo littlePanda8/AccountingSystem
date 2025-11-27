@@ -469,23 +469,38 @@ public class AccountingSystem extends JFrame {
         }
     }
 
-    private class AlternateRowRenderer extends DefaultTableCellRenderer {
-        @Override
-        public Component getTableCellRendererComponent(JTable table, Object value,
-                                                       boolean isSelected, boolean hasFocus, int row, int column) {
-            Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-            if (isSelected) {
-                c.setBackground(TABLE_SELECTION);
-                c.setForeground(Color.WHITE);
-            } else {
-                if (row % 2 == 0) c.setBackground(TABLE_ROW);
-                else c.setBackground(TABLE_ALT_ROW);
-                c.setForeground(Color.BLACK);
-            }
-            setBorder(new EmptyBorder(4, 6, 4, 6));
-            return c;
+   private class AlternateRowRenderer extends DefaultTableCellRenderer {
+
+    @Override
+    public Component getTableCellRendererComponent(JTable table, Object value,
+                                                   boolean isSelected, boolean hasFocus, int row, int column) {
+
+        Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+
+        if (isSelected) {
+            c.setBackground(TABLE_SELECTION);
+            c.setForeground(Color.WHITE);
+        } else {
+            if (row % 2 == 0) c.setBackground(TABLE_ROW);
+            else c.setBackground(TABLE_ALT_ROW);
+            c.setForeground(Color.BLACK);
         }
+
+        setBorder(new EmptyBorder(4, 6, 4, 6));
+
+        if (value != null) {
+            String text = value.toString();
+            if (text.equals("Total Assets") || text.equals("Total Liabilities & Equity")) {
+                c.setFont(new Font("SansSerif", Font.BOLD, 13));
+            } else {
+                c.setFont(new Font("SansSerif", Font.PLAIN, 13));
+            }
+        }
+
+        return c;
     }
+}
+
 
     private class GreenTabbedPaneUI extends BasicTabbedPaneUI {
         private final int arc = 6;
