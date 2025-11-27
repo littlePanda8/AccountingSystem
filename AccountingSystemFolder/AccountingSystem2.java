@@ -113,7 +113,7 @@ public class AccountingSystem extends JFrame {
         gbc.gridwidth = 2;
 
         JLabel heading = new JLabel("Add New Transaction");
-        heading.setFont(new Font("SansSerif", Font.BOLD, 23));
+        heading.setFont(new Font("SansSerif", Font.BOLD, 25));
         heading.setForeground(new Color(34, 139, 70));
         heading.setHorizontalAlignment(SwingConstants.CENTER);
 
@@ -134,15 +134,15 @@ public class AccountingSystem extends JFrame {
 
         p.add(makeLabel("Date (YYYY-MM-DD)"), gbc);
         gbc.gridy++;
-        JTextField dateField = new JTextField("2025-11-26");
-        dateField.setPreferredSize(new Dimension(1000, 25));
+        JTextField dateField = new JTextField("");
+        dateField.setPreferredSize(new Dimension(1000, 28));
         p.add(dateField, gbc);
 
         gbc.gridy++;
         p.add(makeLabel("Description"), gbc);
         gbc.gridy++;
         JTextField desc = new JTextField();
-        desc.setPreferredSize(new Dimension(1000, 25));
+        desc.setPreferredSize(new Dimension(1000, 28));
         p.add(desc, gbc);
 
         gbc.gridy++;
@@ -151,7 +151,8 @@ public class AccountingSystem extends JFrame {
         JComboBox<String> debit = new JComboBox<>(sampleAccounts());
         styleLargeComboBox(debit);
         applyComboPopupRenderer(debit);
-        debit.setPreferredSize(new Dimension(1000, 25));
+        debit.setPreferredSize(new Dimension(1000, 28));
+        debit.setSelectedIndex(-1);
         p.add(debit, gbc);
 
         gbc.gridy++;
@@ -160,16 +161,17 @@ public class AccountingSystem extends JFrame {
         JComboBox<String> credit = new JComboBox<>(sampleAccounts());
         styleLargeComboBox(credit);
         applyComboPopupRenderer(credit);
-        credit.setPreferredSize(new Dimension(1000, 25));
+        credit.setPreferredSize(new Dimension(1000, 28));
+        credit.setSelectedIndex(-1);
         p.add(credit, gbc);
 
         gbc.gridy++;
         p.add(makeLabel("Amount"), gbc);
         gbc.gridy++;
         JFormattedTextField amount = new JFormattedTextField(NumberFormat.getNumberInstance());
-        amount.setText("0");
+        amount.setText("");
         amount.setColumns(20);
-        amount.setPreferredSize(new Dimension(1000, 25));
+        amount.setPreferredSize(new Dimension(1000, 28));
         p.add(amount, gbc);
 
         gbc.gridy++;
@@ -184,7 +186,7 @@ public class AccountingSystem extends JFrame {
         addBtn.setOpaque(true);
         addBtn.setFocusPainted(false);
         addBtn.setBorderPainted(false);
-        addBtn.setPreferredSize(new Dimension(1000, 25));
+        addBtn.setPreferredSize(new Dimension(1000, 27));
         addBtn.setFont(new Font("Segoe UI", Font.BOLD, 12)); 
         addHoverEffect(addBtn);
 
@@ -216,6 +218,13 @@ public class AccountingSystem extends JFrame {
 
             transactionsModel.addRow(new Object[]{date, description, debitAcc, creditAcc, moneyFmt.format(amt)});
 
+            desc.setText("");
+            amount.setText("");
+
+            dateField.setText("");
+            debit.setSelectedIndex(-1);
+            credit.setSelectedIndex(-1);
+
             journalModel.addRow(new Object[]{date, description, debitAcc, moneyFmt.format(amt), ""});
             journalModel.addRow(new Object[]{date, description, creditAcc, "", moneyFmt.format(amt)});
 
@@ -230,7 +239,7 @@ public class AccountingSystem extends JFrame {
             updateBalanceSheetTotals();
 
             desc.setText("");
-            amount.setText("0");
+            amount.setText("");
         });
 
         p.add(addBtn, gbc);
@@ -374,7 +383,7 @@ public class AccountingSystem extends JFrame {
 
     private JLabel makeLabel(String text) {
         JLabel l = new JLabel(text);
-        l.setFont(new Font("SansSerif", Font.PLAIN, 13));
+        l.setFont(new Font("Segeo UI", Font.PLAIN, 13));
         l.setForeground(new Color(40, 90, 40));
         l.setBorder(new EmptyBorder(6, 6, 4, 6));
         return l;
@@ -598,24 +607,50 @@ public class AccountingSystem extends JFrame {
     }
 
     private void updateBalanceSheetTotals() {
-        double totalAssets = 0.0;
-        double totalLiabEq = 0.0;
-        for (int i = 0; i < accountsModel.getRowCount(); i++) {
-            String type = (String) accountsModel.getValueAt(i, 1);
-            double bal = parseMoney((String) accountsModel.getValueAt(i, 2));
-            if ("ASSET".equals(type)) totalAssets += bal;
-            else if ("LIABILITY".equals(type)) totalLiabEq += bal;
-            else if ("EQUITY".equals(type)) totalLiabEq += bal;
-            else if ("REVENUE".equals(type)) totalLiabEq += bal;
-            else if ("EXPENSE".equals(type)) totalAssets += bal; 
-            else totalAssets += bal; 
-        }
-        if (balanceLeftModel.getRowCount() == 0) balanceLeftModel.addRow(new Object[]{"Total Assets", moneyFmt.format(totalAssets)});
-        else balanceLeftModel.setValueAt(moneyFmt.format(totalAssets), 0, 1);
 
-        if (balanceRightModel.getRowCount() == 0) balanceRightModel.addRow(new Object[]{"Total Liabilities & Equity", moneyFmt.format(totalLiabEq)});
-        else balanceRightModel.setValueAt(moneyFmt.format(totalLiabEq), 0, 1);
+    balanceLeftModel.setRowCount(0);
+    balanceRightModel.setRowCount(0);
+
+    double totalAssets = 0.0;
+    double totalLiabEq = 0.0;
+
+    for (int i = 0; i < accountsModel.getRowCount(); i++) {
+        String account = (String) accountsModel.getValueAt(i, 0);
+        String type = (String) accountsModel.getValueAt(i, 1);
+        double amount = parseMoney((String) accountsModel.getValueAt(i, 2));
+
+        String formatted;
+        if (amount < 0) {
+            formatted = "(" + moneyFmt.format(Math.abs(amount)) + ")";
+        } else {
+            formatted = moneyFmt.format(amount);
+        }
+
+        switch (type) {
+            case "ASSET":
+                balanceLeftModel.addRow(new Object[]{account, formatted});
+                totalAssets += amount;
+                break;
+
+            case "LIABILITY":
+            case "EQUITY":
+                balanceRightModel.addRow(new Object[]{account, formatted});
+                totalLiabEq += amount;
+                break;
+        }
     }
+
+    String totalA = totalAssets < 0
+            ? "(" + moneyFmt.format(Math.abs(totalAssets)) + ")"
+            : moneyFmt.format(totalAssets);
+
+    String totalLE = totalLiabEq < 0
+            ? "(" + moneyFmt.format(Math.abs(totalLiabEq)) + ")"
+            : moneyFmt.format(totalLiabEq);
+
+    balanceLeftModel.addRow(new Object[]{"Total Assets", totalA});
+    balanceRightModel.addRow(new Object[]{"Total Liabilities & Equity", totalLE});
+}
 
     private void addHoverEffect(JButton btn) {
     btn.setBackground(BTN_GREEN);
@@ -626,12 +661,12 @@ public class AccountingSystem extends JFrame {
     btn.addMouseListener(new java.awt.event.MouseAdapter() {
         @Override
         public void mouseEntered(java.awt.event.MouseEvent evt) {
-            btn.setBackground(BTN_GREEN_HOVER); // highlight on hover
+            btn.setBackground(BTN_GREEN_HOVER); 
         }
 
         @Override
         public void mouseExited(java.awt.event.MouseEvent evt) {
-            btn.setBackground(BTN_GREEN); // return to normal when mouse leaves
+            btn.setBackground(BTN_GREEN); 
         }
     });
 }
