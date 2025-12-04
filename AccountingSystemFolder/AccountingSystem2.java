@@ -240,6 +240,8 @@ public class AccountingSystem extends JFrame {
 
             desc.setText("");
             amount.setText("");
+
+            JOptionPane.showMessageDialog(this, "Transaction added successfully!");
         });
 
         p.add(addBtn, gbc);
