@@ -43,10 +43,10 @@ public class AccountingSystem extends JFrame {
 
         for (String s : sampleAccounts()) {
             String type = deduceAccountType(s);
-            accountsModel.addRow(new Object[]{s, type, moneyFmt.format(0.0)});
+            accountsModel.addRow(new Object[]{s, type, formatAccountingMoney(0.0)});
         }
-        balanceLeftModel.addRow(new Object[]{"Total Assets", moneyFmt.format(0.0)});
-        balanceRightModel.addRow(new Object[]{"Total Liabilities & Equity", moneyFmt.format(0.0)});
+        balanceLeftModel.addRow(new Object[]{"Total Assets", formatAccountingMoney(0.0)});
+        balanceRightModel.addRow(new Object[]{"Total Liabilities & Equity", formatAccountingMoney(0.0)});
 
         UIManager.put("List.background", new Color(235, 247, 237));
         UIManager.put("List.foreground", Color.BLACK);
@@ -232,9 +232,10 @@ public class AccountingSystem extends JFrame {
             adjustAccountBalance(creditAcc, amt, false); 
 
             double runningAfterDebit = getAccountNumericBalance(debitAcc);
-            ledgerModel.addRow(new Object[]{date, description + " (" + debitAcc + ")", moneyFmt.format(amt), "", moneyFmt.format(runningAfterDebit)});
+            ledgerModel.addRow(new Object[]{date, description + " (" + debitAcc + ")", moneyFmt.format(amt), "", formatAccountingMoney(runningAfterDebit)});
+            
             double runningAfterCredit = getAccountNumericBalance(creditAcc);
-            ledgerModel.addRow(new Object[]{date, description + " (" + creditAcc + ")", "", moneyFmt.format(amt), moneyFmt.format(runningAfterCredit)});
+            ledgerModel.addRow(new Object[]{date, description + " (" + creditAcc + ")", "", moneyFmt.format(amt), formatAccountingMoney(runningAfterCredit)});
 
             updateBalanceSheetTotals();
 
@@ -294,7 +295,7 @@ public class AccountingSystem extends JFrame {
         p.add(sc, BorderLayout.CENTER);
 
         add.addActionListener(e -> {
-            accountsModel.addRow(new Object[]{"New Account", "ASSET", moneyFmt.format(0.0)});
+            accountsModel.addRow(new Object[]{"New Account", "ASSET", formatAccountingMoney(0.0)});
             int r = accountsModel.getRowCount() - 1;
             table.setRowSelectionInterval(r, r);
         });
@@ -540,6 +541,9 @@ public class AccountingSystem extends JFrame {
             g.setColor(PANEL_BG);
             g.fillRect(0, 34, tabPane.getWidth(), tabPane.getHeight() - 34);
         }
+        
+        
+
 
         @Override
         protected void paintTabBorder(Graphics g, int tabPlacement, int tabIndex,
@@ -584,6 +588,15 @@ public class AccountingSystem extends JFrame {
         return "ASSET";
     }
 
+   
+    private String formatAccountingMoney(double amount) {
+        if (amount < 0) {
+            return "(" + moneyFmt.format(Math.abs(amount)) + ")";
+        } else {
+            return moneyFmt.format(amount);
+        }
+    }
+
     private void adjustAccountBalance(String accountName, double amount, boolean isDebit) {
         for (int i = 0; i < accountsModel.getRowCount(); i++) {
             String acct = (String) accountsModel.getValueAt(i, 0);
@@ -596,18 +609,26 @@ public class AccountingSystem extends JFrame {
                 } else { 
                     updated = isDebit ? (current - amount) : (current + amount);
                 }
-                accountsModel.setValueAt(moneyFmt.format(updated), i, 2);
+               
+                accountsModel.setValueAt(formatAccountingMoney(updated), i, 2);
                 return;
             }
         }
         double val = isDebit ? amount : -amount;
-        accountsModel.addRow(new Object[]{accountName, "ASSET", moneyFmt.format(val)});
+      
+        accountsModel.addRow(new Object[]{accountName, "ASSET", formatAccountingMoney(val)});
     }
 
     private double parseMoney(String moneyString) {
         try {
             String cleaned = moneyString.replace("\u20B1", "").replace(",", "").trim();
-            return Double.parseDouble(cleaned);
+           
+            cleaned = cleaned.replace("(", "").replace(")", "");
+        
+            boolean isNegative = moneyString.contains("(") && moneyString.contains(")");
+            double value = Double.parseDouble(cleaned);
+            
+            return isNegative ? -value : value;
         } catch (Exception ex) {
             return 0.0;
         }
@@ -625,49 +646,40 @@ public class AccountingSystem extends JFrame {
 
     private void updateBalanceSheetTotals() {
 
-    balanceLeftModel.setRowCount(0);
-    balanceRightModel.setRowCount(0);
+        balanceLeftModel.setRowCount(0);
+        balanceRightModel.setRowCount(0);
 
-    double totalAssets = 0.0;
-    double totalLiabEq = 0.0;
+        double totalAssets = 0.0;
+        double totalLiabEq = 0.0;
 
-    for (int i = 0; i < accountsModel.getRowCount(); i++) {
-        String account = (String) accountsModel.getValueAt(i, 0);
-        String type = (String) accountsModel.getValueAt(i, 1);
-        double amount = parseMoney((String) accountsModel.getValueAt(i, 2));
+        for (int i = 0; i < accountsModel.getRowCount(); i++) {
+            String account = (String) accountsModel.getValueAt(i, 0);
+            String type = (String) accountsModel.getValueAt(i, 1);
+ 
+            double amount = getAccountNumericBalance(account); 
 
-        String formatted;
-        if (amount < 0) {
-            formatted = "(" + moneyFmt.format(Math.abs(amount)) + ")";
-        } else {
-            formatted = moneyFmt.format(amount);
+            String formatted = formatAccountingMoney(amount);
+
+            switch (type) {
+                case "ASSET":
+                    balanceLeftModel.addRow(new Object[]{account, formatted});
+                    totalAssets += amount;
+                    break;
+
+                case "LIABILITY":
+                case "EQUITY":
+                    balanceRightModel.addRow(new Object[]{account, formatted});
+                    totalLiabEq += amount;
+                    break;
+            }
         }
 
-        switch (type) {
-            case "ASSET":
-                balanceLeftModel.addRow(new Object[]{account, formatted});
-                totalAssets += amount;
-                break;
+        String totalA = formatAccountingMoney(totalAssets);
+        String totalLE = formatAccountingMoney(totalLiabEq);
 
-            case "LIABILITY":
-            case "EQUITY":
-                balanceRightModel.addRow(new Object[]{account, formatted});
-                totalLiabEq += amount;
-                break;
-        }
+        balanceLeftModel.addRow(new Object[]{"Total Assets", totalA});
+        balanceRightModel.addRow(new Object[]{"Total Liabilities & Equity", totalLE});
     }
-
-    String totalA = totalAssets < 0
-            ? "(" + moneyFmt.format(Math.abs(totalAssets)) + ")"
-            : moneyFmt.format(totalAssets);
-
-    String totalLE = totalLiabEq < 0
-            ? "(" + moneyFmt.format(Math.abs(totalLiabEq)) + ")"
-            : moneyFmt.format(totalLiabEq);
-
-    balanceLeftModel.addRow(new Object[]{"Total Assets", totalA});
-    balanceRightModel.addRow(new Object[]{"Total Liabilities & Equity", totalLE});
-}
 
     private void addHoverEffect(JButton btn) {
     btn.setBackground(BTN_GREEN);
