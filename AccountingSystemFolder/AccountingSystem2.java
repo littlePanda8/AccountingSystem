@@ -98,10 +98,12 @@
             applyUIManagerTheme();
         }
 
+        // 
         private void applyUIManagerTheme() {
-            UIManager.put("Table.background", TABLE_ROW);
-            UIManager.put("Table.alternateRowColor", TABLE_ALT_ROW);
-            UIManager.put("Table.selectionBackground", TABLE_SELECTION);
+            // TABLES
+            UIManager.put("Table.background", TABLE_ROW); // default color (WHITE)
+            UIManager.put("Table.alternateRowColor", TABLE_ALT_ROW); // alt row colors
+            UIManager.put("Table.selectionBackground", TABLE_SELECTION); // color when selected
             UIManager.put("Table.selectionForeground", Color.WHITE);
             UIManager.put("TableHeader.background", TABLE_HEADER_BG);
             UIManager.put("TableHeader.foreground", Color.DARK_GRAY);
@@ -861,12 +863,11 @@
         }
 
         private void updateBalanceSheetTotals() {
-
-            // Remove the totals before calculation
+            // Clear previous totals before calculation
             if (balanceLeftModel.getRowCount() > 0) balanceLeftModel.removeRow(balanceLeftModel.getRowCount() - 1);
             if (balanceRightModel.getRowCount() > 0) balanceRightModel.removeRow(balanceRightModel.getRowCount() - 1);
-            
-            // Remove all previous account rows to rebuild
+
+            // Temporary storage for rows
             Vector<Vector> assetRows = new Vector<>();
             Vector<Vector> liabEqRows = new Vector<>();
 
@@ -876,19 +877,13 @@
             for (int i = 0; i < accountsModel.getRowCount(); i++) {
                 String account = (String) accountsModel.getValueAt(i, 0);
                 String type = (String) accountsModel.getValueAt(i, 1);
-                // Get the raw numeric balance
-                double amount = getAccountNumericBalance(account); 
-
-                // Use the consistent formatting helper
+                double amount = getAccountNumericBalance(account); // numeric balance
                 String formatted = formatAccountingMoney(amount);
-                
-                // Temporary row data
+
                 Vector<Object> row = new Vector<>();
                 row.add(account);
                 row.add(formatted);
 
-                // Only Assets and Liabilities/Equity appear on the Balance Sheet. 
-                // Revenue/Expense affect Equity (Retained Earnings) but are not listed directly here.
                 switch (type) {
                     case "ASSET":
                         assetRows.add(row);
@@ -896,26 +891,33 @@
                         break;
 
                     case "LIABILITY":
-                    case "EQUITY":
                         liabEqRows.add(row);
                         totalLiabEq += amount;
                         break;
+
+                    case "EQUITY":
+                        if (account.toLowerCase().contains("drawing")) {
+                            // Drawings reduce equity
+                            liabEqRows.add(row);
+                            totalLiabEq -= amount;
+                        } else {
+                            liabEqRows.add(row);
+                            totalLiabEq += amount;
+                        }
+                        break;
                 }
             }
-            
-            // Clear and rebuild models
+
+            // Rebuild models
             balanceLeftModel.setRowCount(0);
-            for(Vector row : assetRows) balanceLeftModel.addRow(row);
-            
+            for (Vector row : assetRows) balanceLeftModel.addRow(row);
+
             balanceRightModel.setRowCount(0);
-            for(Vector row : liabEqRows) balanceRightModel.addRow(row);
+            for (Vector row : liabEqRows) balanceRightModel.addRow(row);
 
-            // Use the consistent formatting helper for totals
-            String totalA = formatAccountingMoney(totalAssets);
-            String totalLE = formatAccountingMoney(totalLiabEq);
-
-            balanceLeftModel.addRow(new Object[]{"Total Assets", totalA});
-            balanceRightModel.addRow(new Object[]{"Total Liabilities & Equity", totalLE});
+            // Add totals
+            balanceLeftModel.addRow(new Object[]{"Total Assets", formatAccountingMoney(totalAssets)});
+            balanceRightModel.addRow(new Object[]{"Total Liabilities & Equity", formatAccountingMoney(totalLiabEq)});
         }
 
         private void addHoverEffect(JButton btn) {
