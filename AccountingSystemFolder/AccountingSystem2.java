@@ -250,8 +250,8 @@
                 addAccountToLedgerList(creditAcc);
                 
                 // FIX: Update the balance in the ledger list item
-                updateLedgerAccountListItem(debitAcc);
-                updateLedgerAccountListItem(creditAcc);
+                updateLedgerAccountListItem(debitAcc, debitAcc);
+                updateLedgerAccountListItem(creditAcc, creditAcc);
 
                 // Ledger entries (All transactions in one model for dynamic filtering later)
                 double runningAfterDebit = getAccountNumericBalance(debitAcc);
@@ -259,7 +259,6 @@
                 
                 double runningAfterCredit = getAccountNumericBalance(creditAcc);
                 ledgerModel.addRow(new Object[]{date, description + " (Cr: " + creditAcc + ")", "", moneyFmt.format(amt), formatAccountingMoney(runningAfterCredit)});
-
 
                 updateBalanceSheetTotals();
 
@@ -320,6 +319,17 @@
                 if (e.getType() == TableModelEvent.UPDATE && e.getColumn() == 0) {
                     int row = e.getFirstRow();
                     String newName = (String) accountsModel.getValueAt(row, 0);
+                    String oldName = ""; // find old name from ledger list
+
+                    // Find old name from ledger list
+                    for (int i = 0; i < ledgerAccountListModel.getSize(); i++) {
+                        String item = ledgerAccountListModel.getElementAt(i);
+                        if (item.startsWith(newName)) continue; // skip if same
+                        if (item.startsWith(((String) debit.getItemAt(row)) + " ")) {
+                            oldName = (String) debit.getItemAt(row);
+                            break;
+                        }
+                    }
 
                     DefaultComboBoxModel<String> debitModel = (DefaultComboBoxModel<String>) debit.getModel();
                     if (row < debitModel.getSize()) {
@@ -333,8 +343,7 @@
                         creditModel.insertElementAt(newName, row);
                     }
 
-                    // Also update ledger panel
-                    updateLedgerAccountListItem(newName);
+                    updateLedgerAccountListItem(oldName, newName);
                 }
             });
 
@@ -374,6 +383,7 @@
                         }
                     }
 
+
                     // Remove from debit and credit combo boxes
                     debit.removeItem(accountToRemove);
                     credit.removeItem(accountToRemove);
@@ -410,30 +420,39 @@
             split.setResizeWeight(0.3);
             split.setBorder(null);
 
-            // FIX: Use the class-level list model
+            // Use the class-level list model
             JList<String> list = new JList<>(ledgerAccountListModel);
             list.setSelectionBackground(TABLE_SELECTION);
             list.setSelectionForeground(Color.WHITE);
             list.setFont(new Font("SansSerif", Font.PLAIN, 13));
             list.setBorder(new EmptyBorder(8, 8, 8, 8));
+
             JScrollPane leftScroll = new JScrollPane(list);
-            leftScroll.setBorder(new CompoundBorder(new EmptyBorder(6, 6, 6, 6), new LineBorder(new Color(160, 160, 160))));
+            leftScroll.setBorder(new CompoundBorder(
+                    new EmptyBorder(6, 6, 6, 6), 
+                    new LineBorder(new Color(160, 160, 160))
+            ));
             split.setLeftComponent(leftScroll);
 
-            JTable table = makeStyledTable(new DefaultTableModel(new String[]{"Date", "Description", "Debit", "Credit", "Running"}, 0));
+            // Right table for transactions of selected account
+            JTable table = makeStyledTable(new DefaultTableModel(
+                    new String[]{"Date", "Description", "Debit", "Credit", "Running"}, 0
+            ));
             JScrollPane rightScroll = new JScrollPane(table);
             split.setRightComponent(rightScroll);
-            
-            // FIX: Add selection listener to filter the ledger table
+
+            // Selection listener to filter the ledger table based on selected account
             list.addListSelectionListener(e -> {
                 if (!e.getValueIsAdjusting() && list.getSelectedValue() != null) {
                     String selected = list.getSelectedValue();
-                    // Extract the account name from the list item string (e.g., "Cash (ASSET) — ₱1,000.00")
+                    // Extract account name (e.g., "Cash (ASSET) — ₱1,000.00")
                     String accountName = selected.substring(0, selected.indexOf(" ("));
                     filterLedger(accountName, table, rightScroll);
                 } else if (!e.getValueIsAdjusting() && list.getSelectedValue() == null) {
                     // Clear the table if no account is selected
-                    table.setModel(new DefaultTableModel(new String[]{"Date", "Description", "Debit", "Credit", "Running"}, 0));
+                    table.setModel(new DefaultTableModel(
+                            new String[]{"Date", "Description", "Debit", "Credit", "Running"}, 0
+                    ));
                 }
             });
 
@@ -443,10 +462,13 @@
         
         // FIX: Method to dynamically filter the Ledger table based on selected account
         private void filterLedger(String accountName, JTable table, JScrollPane scrollPane) {
-            DefaultTableModel filteredModel = new DefaultTableModel(new String[]{"Date", "Description", "Debit", "Credit", "Running"}, 0);
-            double currentRunningBalance = 0.0;
-            
-            // Determine the account type and its normal balance (Debit/Credit)
+            DefaultTableModel filteredModel = new DefaultTableModel(
+                    new String[]{"Date", "Description", "Debit", "Credit", "Running"}, 0
+            );
+
+            double runningBalance = 0.0;
+
+            // Determine account type for normal balance calculation
             String type = "";
             for (int i = 0; i < accountsModel.getRowCount(); i++) {
                 if (((String) accountsModel.getValueAt(i, 0)).equals(accountName)) {
@@ -454,46 +476,40 @@
                     break;
                 }
             }
-            boolean isDebitIncrease = "ASSET".equals(type) || "EXPENSE".equals(type);
-            
-            // Iterate through the General Journal, which holds all transactions
+            boolean debitIncrease = type.equals("ASSET") || type.equals("EXPENSE");
+
+            // Iterate over general journal
             for (int i = 0; i < journalModel.getRowCount(); i++) {
-                String transactionAccount = (String) journalModel.getValueAt(i, 2); 
-                if (transactionAccount.equals(accountName)) {
-                    
+                String journalAccount = (String) journalModel.getValueAt(i, 2);
+                if (journalAccount.equals(accountName)) {
                     String date = (String) journalModel.getValueAt(i, 0);
-                    String description = (String) journalModel.getValueAt(i, 1);
+                    String desc = (String) journalModel.getValueAt(i, 1);
                     String debitStr = (String) journalModel.getValueAt(i, 3);
                     String creditStr = (String) journalModel.getValueAt(i, 4);
-                    
-                    double debit = parseMoney(debitStr);
-                    double credit = parseMoney(creditStr);
-                    
-                    if (debit > 0) {
-                        currentRunningBalance += isDebitIncrease ? debit : -debit;
-                    } else if (credit > 0) {
-                        currentRunningBalance += isDebitIncrease ? -credit : credit;
+
+                    double debitAmt = parseMoney(debitStr);
+                    double creditAmt = parseMoney(creditStr);
+
+                    if (debitAmt > 0) {
+                        runningBalance += debitIncrease ? debitAmt : -debitAmt;
+                    } else if (creditAmt > 0) {
+                        runningBalance += debitIncrease ? -creditAmt : creditAmt;
                     }
-                    
-                    // Determine the transaction description for this account
-                    String drCr = debit > 0 ? "Dr: " : "Cr: ";
-                    
+
                     filteredModel.addRow(new Object[]{
-                        date,
-                        description,
-                        debitStr,
-                        creditStr,
-                        formatAccountingMoney(currentRunningBalance)
+                            date,
+                            desc,
+                            debitStr,
+                            creditStr,
+                            formatAccountingMoney(runningBalance)
                     });
                 }
             }
-            
+
             table.setModel(filteredModel);
-            // Re-apply styling and refresh view
             table.setDefaultRenderer(Object.class, new AlternateRowRenderer());
             scrollPane.revalidate();
         }
-
 
         private JPanel createBalanceSheetPanel() {
             JPanel p = new JPanel(new GridLayout(1, 2, 12, 12));
@@ -657,46 +673,40 @@
 
         // FIX: Renamed and corrected the logic to use DefaultListModel
         private void addAccountToLedgerList(String accountName) {
-            // Check if it already exists
             for (int i = 0; i < ledgerAccountListModel.getSize(); i++) {
-                // Check only the account name
-                if (ledgerAccountListModel.getElementAt(i).startsWith(accountName + " ")) {
-                    return; // Already exists
-                }
+                if (ledgerAccountListModel.getElementAt(i).startsWith(accountName + " ")) return;
             }
 
-            // Find the type and balance for the initial add to the list
+            // Get account type and balance
             for (int i = 0; i < accountsModel.getRowCount(); i++) {
                 String acct = (String) accountsModel.getValueAt(i, 0);
                 if (acct.equals(accountName)) {
                     String type = (String) accountsModel.getValueAt(i, 1);
                     String bal = (String) accountsModel.getValueAt(i, 2);
-                    ledgerAccountListModel.addElement(acct + " (" + type + ") — " + bal);
+                    ledgerAccountListModel.addElement(acct + " (" + type + ") - " + bal);
                     return;
                 }
             }
         }
-        
+
         // FIX: New method to update the balance shown in the JList item
-        private void updateLedgerAccountListItem(String accountName) {
-            for (int i = 0; i < accountsModel.getRowCount(); i++) {
-                String acct = (String) accountsModel.getValueAt(i, 0);
-                if (acct.equals(accountName)) {
-                    String type = (String) accountsModel.getValueAt(i, 1);
-                    String bal = (String) accountsModel.getValueAt(i, 2);
-                    String newItem = acct + " (" + type + ") — " + bal;
-                    
-                    // Find and replace the existing item in the list model
-                    for (int j = 0; j < ledgerAccountListModel.getSize(); j++) {
-                        if (ledgerAccountListModel.getElementAt(j).startsWith(accountName + " ")) {
-                            ledgerAccountListModel.set(j, newItem);
+        private void updateLedgerAccountListItem(String oldName, String newName) {
+            for (int j = 0; j < ledgerAccountListModel.getSize(); j++) {
+                String item = ledgerAccountListModel.getElementAt(j);
+                if (item.startsWith(oldName + " ")) {
+                    // get type and balance from accountsModel using newName
+                    for (int i = 0; i < accountsModel.getRowCount(); i++) {
+                        String acct = (String) accountsModel.getValueAt(i, 0);
+                        if (acct.equals(newName)) {
+                            String type = (String) accountsModel.getValueAt(i, 1);
+                            String bal = (String) accountsModel.getValueAt(i, 2);
+                            ledgerAccountListModel.set(j, newName + " (" + type + ") - " + bal);
                             return;
                         }
                     }
                 }
             }
         }
-
 
         private class GreenTabbedPaneUI extends BasicTabbedPaneUI {
             private final int arc = 6;
