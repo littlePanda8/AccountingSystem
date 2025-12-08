@@ -317,31 +317,24 @@
 
             // update debit/credit comboboxes in "NEW TRANSACTION PANEL" whenever we edit account names
             accountsModel.addTableModelListener(e -> {
-                if (e.getType() == TableModelEvent.UPDATE && e.getColumn() == 0) { // Name column
+                if (e.getType() == TableModelEvent.UPDATE && e.getColumn() == 0) {
                     int row = e.getFirstRow();
                     String newName = (String) accountsModel.getValueAt(row, 0);
 
-                    // Update debit combo
                     DefaultComboBoxModel<String> debitModel = (DefaultComboBoxModel<String>) debit.getModel();
-                    for (int i = 0; i < debitModel.getSize(); i++) {
-                        String item = debitModel.getElementAt(i);
-                        if (item.equals(debitModel.getElementAt(i))) {
-                            debitModel.removeElementAt(i);
-                            debitModel.insertElementAt(newName, i);
-                            break;
-                        }
+                    if (row < debitModel.getSize()) {
+                        debitModel.removeElementAt(row);
+                        debitModel.insertElementAt(newName, row);
                     }
 
-                    // Update credit combo
                     DefaultComboBoxModel<String> creditModel = (DefaultComboBoxModel<String>) credit.getModel();
-                    for (int i = 0; i < creditModel.getSize(); i++) {
-                        String item = creditModel.getElementAt(i);
-                        if (item.equals(creditModel.getElementAt(i))) {
-                            creditModel.removeElementAt(i);
-                            creditModel.insertElementAt(newName, i);
-                            break;
-                        }
+                    if (row < creditModel.getSize()) {
+                        creditModel.removeElementAt(row);
+                        creditModel.insertElementAt(newName, row);
                     }
+
+                    // Also update ledger panel
+                    updateLedgerAccountListItem(newName);
                 }
             });
 
