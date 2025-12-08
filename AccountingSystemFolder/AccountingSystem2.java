@@ -661,7 +661,7 @@
                 table.getModel().getColumnName(column).contains("Credit") ||
                 table.getModel().getColumnName(column).contains("Balance") ||
                 table.getModel().getColumnName(column).contains("Running")) {
-                setHorizontalAlignment(SwingConstants.RIGHT);
+                setHorizontalAlignment(SwingConstants.LEFT);
             } else {
                 setHorizontalAlignment(SwingConstants.LEFT);
             }
