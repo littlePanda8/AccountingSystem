@@ -3,8 +3,11 @@ import javax.swing.border.*;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
 import javax.swing.table.*;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
+import java.util.Vector;
 
 public class AccountingSystem extends JFrame {
 
@@ -27,6 +30,7 @@ public class AccountingSystem extends JFrame {
     private final DefaultTableModel ledgerModel;
     private final DefaultTableModel balanceLeftModel;   
     private final DefaultTableModel balanceRightModel;  
+    private final DefaultListModel<String> ledgerAccountListModel; // FIX: Added list model for Ledger left side
 
     private final DecimalFormat moneyFmt = new DecimalFormat("\u20B1#,##0.00");
 
@@ -40,10 +44,15 @@ public class AccountingSystem extends JFrame {
         ledgerModel = new DefaultTableModel(new String[]{"Date", "Description", "Debit", "Credit", "Running"}, 0);
         balanceLeftModel = new DefaultTableModel(new String[]{"Asset", "Amount"}, 0);
         balanceRightModel = new DefaultTableModel(new String[]{"Liability/Equity", "Amount"}, 0);
+        ledgerAccountListModel = new DefaultListModel<>(); // FIX: Initialized list model
 
         for (String s : sampleAccounts()) {
             String type = deduceAccountType(s);
+            // Use accounting format for initial zero balance
             accountsModel.addRow(new Object[]{s, type, formatAccountingMoney(0.0)});
+            
+            // FIX: Populate the Ledger account list on startup
+            addAccountToLedgerList(s);
         }
         balanceLeftModel.addRow(new Object[]{"Total Assets", formatAccountingMoney(0.0)});
         balanceRightModel.addRow(new Object[]{"Total Liabilities & Equity", formatAccountingMoney(0.0)});
@@ -218,29 +227,38 @@ public class AccountingSystem extends JFrame {
 
             transactionsModel.addRow(new Object[]{date, description, debitAcc, creditAcc, moneyFmt.format(amt)});
 
+            // Clear input fields
             desc.setText("");
             amount.setText("");
-
             dateField.setText("");
             debit.setSelectedIndex(-1);
             credit.setSelectedIndex(-1);
 
+            // General Journal entries
             journalModel.addRow(new Object[]{date, description, debitAcc, moneyFmt.format(amt), ""});
             journalModel.addRow(new Object[]{date, description, creditAcc, "", moneyFmt.format(amt)});
 
-            adjustAccountBalance(debitAcc, amt, true);  
-            adjustAccountBalance(creditAcc, amt, false); 
+            // Keep account balances updated
+            adjustAccountBalance(debitAcc, amt, true);
+            adjustAccountBalance(creditAcc, amt, false);
+            
+            // FIX: Add account to the ledger list if it's new (now using the corrected method)
+            addAccountToLedgerList(debitAcc);
+            addAccountToLedgerList(creditAcc);
+            
+            // FIX: Update the balance in the ledger list item
+            updateLedgerAccountListItem(debitAcc);
+            updateLedgerAccountListItem(creditAcc);
 
+            // Ledger entries (All transactions in one model for dynamic filtering later)
             double runningAfterDebit = getAccountNumericBalance(debitAcc);
-            ledgerModel.addRow(new Object[]{date, description + " (" + debitAcc + ")", moneyFmt.format(amt), "", formatAccountingMoney(runningAfterDebit)});
+            ledgerModel.addRow(new Object[]{date, description + " (Dr: " + debitAcc + ")", moneyFmt.format(amt), "", formatAccountingMoney(runningAfterDebit)});
             
             double runningAfterCredit = getAccountNumericBalance(creditAcc);
-            ledgerModel.addRow(new Object[]{date, description + " (" + creditAcc + ")", "", moneyFmt.format(amt), formatAccountingMoney(runningAfterCredit)});
+            ledgerModel.addRow(new Object[]{date, description + " (Cr: " + creditAcc + ")", "", moneyFmt.format(amt), formatAccountingMoney(runningAfterCredit)});
+
 
             updateBalanceSheetTotals();
-
-            desc.setText("");
-            amount.setText("");
 
             JOptionPane.showMessageDialog(this, "Transaction added successfully!");
         });
@@ -295,15 +313,29 @@ public class AccountingSystem extends JFrame {
         p.add(sc, BorderLayout.CENTER);
 
         add.addActionListener(e -> {
-            accountsModel.addRow(new Object[]{"New Account", "ASSET", formatAccountingMoney(0.0)});
+            String newAccount = "New Account " + accountsModel.getRowCount();
+            String newType = "ASSET";
+            
+            // Use formatAccountingMoney for new accounts
+            accountsModel.addRow(new Object[]{newAccount, newType, formatAccountingMoney(0.0)});
             int r = accountsModel.getRowCount() - 1;
             table.setRowSelectionInterval(r, r);
+            addAccountToLedgerList(newAccount); // Add to ledger list
         });
         remove.addActionListener(e -> {
             int sel = table.getSelectedRow();
             if (sel >= 0) {
+                String accountToRemove = (String) accountsModel.getValueAt(sel, 0);
                 accountsModel.removeRow(sel);
                 updateBalanceSheetTotals();
+                
+                // Remove from Ledger List (simple approach)
+                for(int i = 0; i < ledgerAccountListModel.getSize(); i++) {
+                    if(ledgerAccountListModel.getElementAt(i).startsWith(accountToRemove + " ")) {
+                        ledgerAccountListModel.remove(i);
+                        break;
+                    }
+                }
             } else {
                 JOptionPane.showMessageDialog(this, "Select an account row to remove (UI-only).");
             }
@@ -313,7 +345,9 @@ public class AccountingSystem extends JFrame {
     }
 
     private Dimension Dimension(int i, int j) {
-        throw new UnsupportedOperationException("Unimplemented method 'Dimension'");
+        // FIX: The original code had an unimplemented method 'Dimension(int, int)'.
+        // Assuming it was meant to be java.awt.Dimension's constructor.
+        return new Dimension(i, j);
     }
 
     private JPanel createBlankJournalPanel() {
@@ -333,14 +367,8 @@ public class AccountingSystem extends JFrame {
         split.setResizeWeight(0.3);
         split.setBorder(null);
 
-        DefaultListModel<String> listModel = new DefaultListModel<>();
-        for (int i = 0; i < accountsModel.getRowCount(); i++) {
-            String acct = (String) accountsModel.getValueAt(i, 0);
-            String type = (String) accountsModel.getValueAt(i, 1);
-            String bal = (String) accountsModel.getValueAt(i, 2);
-            listModel.addElement(acct + " (" + type + ") — " + bal);
-        }
-        JList<String> list = new JList<>(listModel);
+        // FIX: Use the class-level list model
+        JList<String> list = new JList<>(ledgerAccountListModel);
         list.setSelectionBackground(TABLE_SELECTION);
         list.setSelectionForeground(Color.WHITE);
         list.setFont(new Font("SansSerif", Font.PLAIN, 13));
@@ -349,12 +377,80 @@ public class AccountingSystem extends JFrame {
         leftScroll.setBorder(new CompoundBorder(new EmptyBorder(6, 6, 6, 6), new LineBorder(new Color(160, 160, 160))));
         split.setLeftComponent(leftScroll);
 
-        JTable table = makeStyledTable(ledgerModel);
-        split.setRightComponent(new JScrollPane(table));
+        JTable table = makeStyledTable(new DefaultTableModel(new String[]{"Date", "Description", "Debit", "Credit", "Running"}, 0));
+        JScrollPane rightScroll = new JScrollPane(table);
+        split.setRightComponent(rightScroll);
+        
+        // FIX: Add selection listener to filter the ledger table
+        list.addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting() && list.getSelectedValue() != null) {
+                String selected = list.getSelectedValue();
+                // Extract the account name from the list item string (e.g., "Cash (ASSET) — ₱1,000.00")
+                String accountName = selected.substring(0, selected.indexOf(" ("));
+                filterLedger(accountName, table, rightScroll);
+            } else if (!e.getValueIsAdjusting() && list.getSelectedValue() == null) {
+                // Clear the table if no account is selected
+                table.setModel(new DefaultTableModel(new String[]{"Date", "Description", "Debit", "Credit", "Running"}, 0));
+            }
+        });
 
         p.add(split, BorderLayout.CENTER);
         return p;
     }
+    
+    // FIX: Method to dynamically filter the Ledger table based on selected account
+    private void filterLedger(String accountName, JTable table, JScrollPane scrollPane) {
+        DefaultTableModel filteredModel = new DefaultTableModel(new String[]{"Date", "Description", "Debit", "Credit", "Running"}, 0);
+        double currentRunningBalance = 0.0;
+        
+        // Determine the account type and its normal balance (Debit/Credit)
+        String type = "";
+        for (int i = 0; i < accountsModel.getRowCount(); i++) {
+            if (((String) accountsModel.getValueAt(i, 0)).equals(accountName)) {
+                type = (String) accountsModel.getValueAt(i, 1);
+                break;
+            }
+        }
+        boolean isDebitIncrease = "ASSET".equals(type) || "EXPENSE".equals(type);
+        
+        // Iterate through the General Journal, which holds all transactions
+        for (int i = 0; i < journalModel.getRowCount(); i++) {
+            String transactionAccount = (String) journalModel.getValueAt(i, 2); 
+            if (transactionAccount.equals(accountName)) {
+                
+                String date = (String) journalModel.getValueAt(i, 0);
+                String description = (String) journalModel.getValueAt(i, 1);
+                String debitStr = (String) journalModel.getValueAt(i, 3);
+                String creditStr = (String) journalModel.getValueAt(i, 4);
+                
+                double debit = parseMoney(debitStr);
+                double credit = parseMoney(creditStr);
+                
+                if (debit > 0) {
+                    currentRunningBalance += isDebitIncrease ? debit : -debit;
+                } else if (credit > 0) {
+                    currentRunningBalance += isDebitIncrease ? -credit : credit;
+                }
+                
+                // Determine the transaction description for this account
+                String drCr = debit > 0 ? "Dr: " : "Cr: ";
+                
+                filteredModel.addRow(new Object[]{
+                    date,
+                    description,
+                    debitStr,
+                    creditStr,
+                    formatAccountingMoney(currentRunningBalance)
+                });
+            }
+        }
+        
+        table.setModel(filteredModel);
+        // Re-apply styling and refresh view
+        table.setDefaultRenderer(Object.class, new AlternateRowRenderer());
+        scrollPane.revalidate();
+    }
+
 
     private JPanel createBalanceSheetPanel() {
         JPanel p = new JPanel(new GridLayout(1, 2, 12, 12));
@@ -499,10 +595,64 @@ public class AccountingSystem extends JFrame {
                 c.setFont(new Font("SansSerif", Font.PLAIN, 13));
             }
         }
+        
+        // Ensure that number columns are right-aligned
+        if (table.getModel().getColumnName(column).contains("Amount") || 
+            table.getModel().getColumnName(column).contains("Debit") ||
+            table.getModel().getColumnName(column).contains("Credit") ||
+            table.getModel().getColumnName(column).contains("Balance") ||
+            table.getModel().getColumnName(column).contains("Running")) {
+            setHorizontalAlignment(SwingConstants.RIGHT);
+        } else {
+            setHorizontalAlignment(SwingConstants.LEFT);
+        }
 
         return c;
     }
+
 }
+
+    // FIX: Renamed and corrected the logic to use DefaultListModel
+    private void addAccountToLedgerList(String accountName) {
+        // Check if it already exists
+        for (int i = 0; i < ledgerAccountListModel.getSize(); i++) {
+            // Check only the account name
+            if (ledgerAccountListModel.getElementAt(i).startsWith(accountName + " ")) {
+                return; // Already exists
+            }
+        }
+
+        // Find the type and balance for the initial add to the list
+        for (int i = 0; i < accountsModel.getRowCount(); i++) {
+            String acct = (String) accountsModel.getValueAt(i, 0);
+            if (acct.equals(accountName)) {
+                String type = (String) accountsModel.getValueAt(i, 1);
+                String bal = (String) accountsModel.getValueAt(i, 2);
+                ledgerAccountListModel.addElement(acct + " (" + type + ") — " + bal);
+                return;
+            }
+        }
+    }
+    
+    // FIX: New method to update the balance shown in the JList item
+    private void updateLedgerAccountListItem(String accountName) {
+        for (int i = 0; i < accountsModel.getRowCount(); i++) {
+            String acct = (String) accountsModel.getValueAt(i, 0);
+            if (acct.equals(accountName)) {
+                String type = (String) accountsModel.getValueAt(i, 1);
+                String bal = (String) accountsModel.getValueAt(i, 2);
+                String newItem = acct + " (" + type + ") — " + bal;
+                
+                // Find and replace the existing item in the list model
+                for (int j = 0; j < ledgerAccountListModel.getSize(); j++) {
+                    if (ledgerAccountListModel.getElementAt(j).startsWith(accountName + " ")) {
+                        ledgerAccountListModel.set(j, newItem);
+                        return;
+                    }
+                }
+            }
+        }
+    }
 
 
     private class GreenTabbedPaneUI extends BasicTabbedPaneUI {
@@ -581,14 +731,19 @@ public class AccountingSystem extends JFrame {
 
     private String deduceAccountType(String accountName) {
         String name = accountName.toLowerCase();
-        if (name.contains("payable") || name.contains("notes payable") || name.contains("liab")) return "LIABILITY";
-        if (name.contains("capital") || name.contains("retained") || name.contains("equity") || name.contains("owner")) return "EQUITY";
+        // Updated logic for better grouping
+        if (name.contains("payable") || name.contains("unearned") || name.contains("notes payable") || name.contains("liab")) return "LIABILITY";
+        if (name.contains("capital") || name.contains("drawings") || name.contains("retained") || name.contains("equity") || name.contains("owner")) return "EQUITY";
         if (name.contains("revenue") || name.contains("sales") || name.contains("service")) return "REVENUE";
-        if (name.contains("expense") || name.contains("rent") || name.contains("utilities") || name.contains("salar")) return "EXPENSE";
+        if (name.contains("expense") || name.contains("rent") || name.contains("utilities") || name.contains("salar") || name.contains("depreciation") || name.contains("insurance")) return "EXPENSE";
         return "ASSET";
     }
 
-   
+    /**
+     * Helper method to format a double as a currency string with parentheses for negative values.
+     * e.g., 1000.00 -> ₱1,000.00
+     * e.g., -1000.00 -> (₱1,000.00)
+     */
     private String formatAccountingMoney(double amount) {
         if (amount < 0) {
             return "(" + moneyFmt.format(Math.abs(amount)) + ")";
@@ -604,28 +759,36 @@ public class AccountingSystem extends JFrame {
                 String type = (String) accountsModel.getValueAt(i, 1);
                 double current = parseMoney((String) accountsModel.getValueAt(i, 2));
                 double updated;
-                if ("ASSET".equals(type) || "EXPENSE".equals(type)) {
-                    updated = isDebit ? (current + amount) : (current - amount);
-                } else { 
-                    updated = isDebit ? (current - amount) : (current + amount);
+                
+                // Debit increases ASSET, EXPENSE, DRAWINGS
+                // Credit increases LIABILITY, EQUITY, REVENUE
+                boolean debitIncreases = "ASSET".equals(type) || "EXPENSE".equals(type) || accountName.contains("Drawings"); 
+                
+                if (isDebit) {
+                    updated = debitIncreases ? (current + amount) : (current - amount);
+                } else { // is Credit
+                    updated = debitIncreases ? (current - amount) : (current + amount);
                 }
-               
+                
+                // Use the new accounting format for the balance
                 accountsModel.setValueAt(formatAccountingMoney(updated), i, 2);
                 return;
             }
         }
+        // If account not found, add it (using ASSET as default, which is likely not what's wanted, but keeps logic simple)
+        // This scenario should be rare if all accounts are pre-loaded or manually added.
         double val = isDebit ? amount : -amount;
-      
+        // Use the new accounting format for the balance
         accountsModel.addRow(new Object[]{accountName, "ASSET", formatAccountingMoney(val)});
     }
 
     private double parseMoney(String moneyString) {
+        if (moneyString == null || moneyString.trim().isEmpty()) return 0.0;
         try {
             String cleaned = moneyString.replace("\u20B1", "").replace(",", "").trim();
-           
-            cleaned = cleaned.replace("(", "").replace(")", "");
-        
             boolean isNegative = moneyString.contains("(") && moneyString.contains(")");
+            cleaned = cleaned.replace("(", "").replace(")", "");
+            
             double value = Double.parseDouble(cleaned);
             
             return isNegative ? -value : value;
@@ -646,8 +809,13 @@ public class AccountingSystem extends JFrame {
 
     private void updateBalanceSheetTotals() {
 
-        balanceLeftModel.setRowCount(0);
-        balanceRightModel.setRowCount(0);
+        // Remove the totals before calculation
+        if (balanceLeftModel.getRowCount() > 0) balanceLeftModel.removeRow(balanceLeftModel.getRowCount() - 1);
+        if (balanceRightModel.getRowCount() > 0) balanceRightModel.removeRow(balanceRightModel.getRowCount() - 1);
+        
+        // Remove all previous account rows to rebuild
+        Vector<Vector> assetRows = new Vector<>();
+        Vector<Vector> liabEqRows = new Vector<>();
 
         double totalAssets = 0.0;
         double totalLiabEq = 0.0;
@@ -655,25 +823,41 @@ public class AccountingSystem extends JFrame {
         for (int i = 0; i < accountsModel.getRowCount(); i++) {
             String account = (String) accountsModel.getValueAt(i, 0);
             String type = (String) accountsModel.getValueAt(i, 1);
- 
+            // Get the raw numeric balance
             double amount = getAccountNumericBalance(account); 
 
+            // Use the consistent formatting helper
             String formatted = formatAccountingMoney(amount);
+            
+            // Temporary row data
+            Vector<Object> row = new Vector<>();
+            row.add(account);
+            row.add(formatted);
 
+            // Only Assets and Liabilities/Equity appear on the Balance Sheet. 
+            // Revenue/Expense affect Equity (Retained Earnings) but are not listed directly here.
             switch (type) {
                 case "ASSET":
-                    balanceLeftModel.addRow(new Object[]{account, formatted});
+                    assetRows.add(row);
                     totalAssets += amount;
                     break;
 
                 case "LIABILITY":
                 case "EQUITY":
-                    balanceRightModel.addRow(new Object[]{account, formatted});
+                    liabEqRows.add(row);
                     totalLiabEq += amount;
                     break;
             }
         }
+        
+        // Clear and rebuild models
+        balanceLeftModel.setRowCount(0);
+        for(Vector row : assetRows) balanceLeftModel.addRow(row);
+        
+        balanceRightModel.setRowCount(0);
+        for(Vector row : liabEqRows) balanceRightModel.addRow(row);
 
+        // Use the consistent formatting helper for totals
         String totalA = formatAccountingMoney(totalAssets);
         String totalLE = formatAccountingMoney(totalLiabEq);
 
