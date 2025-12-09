@@ -287,8 +287,10 @@
             JPanel p = new JPanel(new BorderLayout());
             p.setBackground(PANEL_BG);
 
+            // ===================== BOTTOM PANEL =====================
             JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
             bottom.setOpaque(false);
+
             JButton add = new JButton("Add Account");
             add.setBackground(HEADER_GREEN);
             add.setForeground(Color.WHITE);
@@ -296,7 +298,7 @@
             add.setFocusPainted(false);
             add.setBorderPainted(false);
             add.setPreferredSize(new Dimension(110, 25));
-            add.setFont(new Font("Segoe UI", Font.BOLD, 12)); 
+            add.setFont(new Font("Segoe UI", Font.BOLD, 12));
             addHoverEffect(add);
 
             JButton remove = new JButton("Remove Selected Account");
@@ -306,17 +308,48 @@
             remove.setBorderPainted(false);
             remove.setPreferredSize(new Dimension(170, 25));
             remove.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
             bottom.add(add);
             bottom.add(remove);
             styleRemoveButton(remove);
             p.add(bottom, BorderLayout.SOUTH);
 
+            // ===================== ACCOUNTS TABLE =====================
             JTable table = makeStyledTable(accountsModel);
             JScrollPane sc = new JScrollPane(table);
             sc.setBorder(new EmptyBorder(8, 8, 8, 8));
             p.add(sc, BorderLayout.CENTER);
 
-            // update debit/credit comboboxes in "NEW TRANSACTION PANEL" whenever we edit account names
+            // ===================== CUSTOM RENDERER FOR DEDUCTIONS =====================
+            table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
+                @Override
+                public Component getTableCellRendererComponent(JTable table, Object value,
+                                                            boolean isSelected, boolean hasFocus,
+                                                            int row, int column) {
+                    Component cell = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+
+                    if (column == 2) { // Only apply to "Amount" column
+                        String type = table.getValueAt(row, 1).toString();
+
+                        // List of deduction account types
+                        boolean isDeduction = type.equalsIgnoreCase("Drawing")
+                                || type.equalsIgnoreCase("Expenses")
+                                || type.equalsIgnoreCase("Contra Asset")
+                                || type.equalsIgnoreCase("Contra Capital")
+                                || type.equalsIgnoreCase("Contra Revenue");
+
+                        if (isDeduction) {
+                            String amount = value.toString();
+                            if (!amount.startsWith("(")) { // Prevent double parentheses
+                                setText("(" + amount + ")");
+                            }
+                        }
+                    }
+                    return cell;
+                }
+            });
+
+            // ===================== UPDATE COMBOBOXES ON ACCOUNT NAME CHANGE =====================
             accountsModel.addTableModelListener(e -> {
                 if (e.getType() == TableModelEvent.UPDATE && e.getColumn() == 0) {
                     int row = e.getFirstRow();
@@ -326,7 +359,7 @@
                     // Find old name from ledger list
                     for (int i = 0; i < ledgerAccountListModel.getSize(); i++) {
                         String item = ledgerAccountListModel.getElementAt(i);
-                        if (item.startsWith(newName)) continue; // skip if same
+                        if (item.startsWith(newName)) continue;
                         if (item.startsWith(((String) debit.getItemAt(row)) + " ")) {
                             oldName = (String) debit.getItemAt(row);
                             break;
@@ -349,19 +382,17 @@
                 }
             });
 
+            // ===================== ADD ACCOUNT =====================
             add.addActionListener(e -> {
                 String newAccount = "New Account " + accountsModel.getRowCount();
-                String newType = "ASSET";
+                String newType = "ASSET"; // default type
 
-                // Add new account to the table
                 accountsModel.addRow(new Object[]{newAccount, newType, formatAccountingMoney(0.0)});
                 int r = accountsModel.getRowCount() - 1;
                 table.setRowSelectionInterval(r, r);
 
-                // Add to ledger list
                 addAccountToLedgerList(newAccount);
 
-                // Add to debit and credit drop-downs
                 if (((DefaultComboBoxModel<String>) debit.getModel()).getIndexOf(newAccount) == -1) {
                     debit.addItem(newAccount);
                 }
@@ -370,6 +401,7 @@
                 }
             });
 
+            // ===================== REMOVE ACCOUNT =====================
             remove.addActionListener(e -> {
                 int sel = table.getSelectedRow();
                 if (sel >= 0) {
@@ -385,7 +417,6 @@
                         }
                     }
 
-
                     // Remove from debit and credit combo boxes
                     debit.removeItem(accountToRemove);
                     credit.removeItem(accountToRemove);
@@ -397,7 +428,6 @@
 
             return p;
         }
-
 
         private Dimension Dimension(int i, int j) {
             // FIX: The original code had an unimplemented method 'Dimension(int, int)'.
@@ -863,11 +893,11 @@
         }
 
         private void updateBalanceSheetTotals() {
-            // Clear previous totals before calculation
+
+            // remove previous total rows
             if (balanceLeftModel.getRowCount() > 0) balanceLeftModel.removeRow(balanceLeftModel.getRowCount() - 1);
             if (balanceRightModel.getRowCount() > 0) balanceRightModel.removeRow(balanceRightModel.getRowCount() - 1);
 
-            // Temporary storage for rows
             Vector<Vector> assetRows = new Vector<>();
             Vector<Vector> liabEqRows = new Vector<>();
 
@@ -875,47 +905,51 @@
             double totalLiabEq = 0.0;
 
             for (int i = 0; i < accountsModel.getRowCount(); i++) {
+
                 String account = (String) accountsModel.getValueAt(i, 0);
                 String type = (String) accountsModel.getValueAt(i, 1);
-                double amount = getAccountNumericBalance(account); // numeric balance
-                String formatted = formatAccountingMoney(amount);
+
+                double amount = getAccountNumericBalance(account); // numeric value
+                boolean isDeduction = amount < 0 || account.toLowerCase().contains("drawing"); // deduction logic
+
+                double adjusted = amount;
+
+                if (isDeduction) adjusted = -Math.abs(amount); // ensure deductions reduce total
+
+                String formatted = formatAccountingMoney(amount); // ***** parenthesis applied here *****
 
                 Vector<Object> row = new Vector<>();
                 row.add(account);
                 row.add(formatted);
 
+
                 switch (type) {
+
                     case "ASSET":
                         assetRows.add(row);
-                        totalAssets += amount;
+                        totalAssets += adjusted;
                         break;
 
                     case "LIABILITY":
                         liabEqRows.add(row);
-                        totalLiabEq += amount;
+                        totalLiabEq += adjusted;
                         break;
 
                     case "EQUITY":
-                        if (account.toLowerCase().contains("drawing")) {
-                            // Drawings reduce equity
-                            liabEqRows.add(row);
-                            totalLiabEq -= amount;
-                        } else {
-                            liabEqRows.add(row);
-                            totalLiabEq += amount;
-                        }
+                        liabEqRows.add(row);
+                        totalLiabEq += adjusted;
                         break;
                 }
             }
 
-            // Rebuild models
+            // rebuild tables
             balanceLeftModel.setRowCount(0);
             for (Vector row : assetRows) balanceLeftModel.addRow(row);
 
             balanceRightModel.setRowCount(0);
             for (Vector row : liabEqRows) balanceRightModel.addRow(row);
 
-            // Add totals
+            // totals (also formatted with parenthesis)
             balanceLeftModel.addRow(new Object[]{"Total Assets", formatAccountingMoney(totalAssets)});
             balanceRightModel.addRow(new Object[]{"Total Liabilities & Equity", formatAccountingMoney(totalLiabEq)});
         }
