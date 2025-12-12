@@ -1,40 +1,51 @@
-import javax.swing.*;
 import java.util.ArrayList;
+import java.util.Scanner;
 
 public class LostAndFoundSystem {
 
     private ArrayList<Item> items = new ArrayList<>();
+    private Scanner scanner = new Scanner(System.in);
 
     public void start() {
         int roleChoice;
-        Student student = new Student();
-        Admin admin = new Admin();
+
+        Student student = new Student(scanner);
+        Admin admin = new Admin(scanner);
 
         do {
-            String[] roles = {"Student (Report Lost Item)", "Admin (System Manager)", "Exit"};
-            roleChoice = JOptionPane.showOptionDialog(null,
-                    "=== School Lost & Found System ===\nSelect your role:",
-                    "Lost & Found System",
-                    JOptionPane.DEFAULT_OPTION,
-                    JOptionPane.INFORMATION_MESSAGE,
-                    null,
-                    roles,
-                    roles[0]);
+            System.out.println("\n=== School Lost & Found System ===");
+            System.out.println("Select your role:");
+            System.out.println("1. Student (Report Lost Item)");
+            System.out.println("2. Admin (System Manager)");
+            System.out.println("3. Exit");
+
+            roleChoice = getIntInput("Enter choice: ");
 
             switch (roleChoice) {
-                case 0:
+                case 1:
                     student.menu(items);
                     break;
-                case 1:
+                case 2:
                     admin.menu(items);
                     break;
-                case 2:
-                    JOptionPane.showMessageDialog(null, "Exiting system. Goodbye!");
+                case 3:
+                    System.out.println("Exiting system. Goodbye!");
                     break;
                 default:
-                    JOptionPane.showMessageDialog(null, "Invalid choice. Try again.");
+                    System.out.println("Invalid choice. Try again.");
             }
-        } while (roleChoice != 2);
+        } while (roleChoice != 3);
+    }
+
+    private int getIntInput(String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            try {
+                return Integer.parseInt(scanner.nextLine());
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid input! Please enter a number.");
+            }
+        }
     }
 
     public static void main(String[] args) {
@@ -87,52 +98,64 @@ class Item {
 // STUDENT CLASS
 // ================================
 class Student {
+    private Scanner scanner;
+
+    public Student(Scanner scanner) {
+        this.scanner = scanner;
+    }
 
     public void reportLostItem(ArrayList<Item> items) {
-        String name = JOptionPane.showInputDialog("Enter item name:");
-        if (name == null) return;
+        System.out.print("Enter item name: ");
+        String name = scanner.nextLine();
 
-        String description = JOptionPane.showInputDialog("Enter description:");
-        if (description == null) return;
+        System.out.print("Enter description: ");
+        String description = scanner.nextLine();
 
-        String location = JOptionPane.showInputDialog("Enter location found:");
-        if (location == null) return;
+        System.out.print("Enter location found: ");
+        String location = scanner.nextLine();
 
-        String date = JOptionPane.showInputDialog("Enter date found (e.g., 2025-12-11):");
-        if (date == null) return;
+        System.out.print("Enter date found (e.g., 2025-12-11): ");
+        String date = scanner.nextLine();
 
         Item item = new Item(name, description, location, date);
         items.add(item);
 
-        JOptionPane.showMessageDialog(null, "Lost item reported successfully!\n" +
-                "Your item ID (ticket number) is: " + item.getId() +
-                "\nKeep this ID for verification purposes.");
+        System.out.println("Lost item reported successfully!");
+        System.out.println("Your item ID (ticket number) is: " + item.getId());
+        System.out.println("Keep this ID for verification purposes.");
     }
 
     public void menu(ArrayList<Item> items) {
         int choice;
         do {
-            String[] options = {"Report Lost Item", "Return to Main Menu"};
-            choice = JOptionPane.showOptionDialog(null,
-                    "--- Student Menu ---",
-                    "Student",
-                    JOptionPane.DEFAULT_OPTION,
-                    JOptionPane.INFORMATION_MESSAGE,
-                    null,
-                    options,
-                    options[0]);
+            System.out.println("\n--- Student Menu ---");
+            System.out.println("1. Report Lost Item");
+            System.out.println("2. Return to Main Menu");
+
+            choice = getIntInput("Enter choice: ");
 
             switch (choice) {
-                case 0:
+                case 1:
                     reportLostItem(items);
                     break;
-                case 1:
-                    JOptionPane.showMessageDialog(null, "Returning to main menu...");
+                case 2:
+                    System.out.println("Returning to main menu...");
                     break;
                 default:
-                    JOptionPane.showMessageDialog(null, "Invalid choice. Try again.");
+                    System.out.println("Invalid choice. Try again.");
             }
-        } while (choice != 1);
+        } while (choice != 2);
+    }
+
+    private int getIntInput(String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            try {
+                return Integer.parseInt(scanner.nextLine());
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid input! Please enter a number.");
+            }
+        }
     }
 }
 
@@ -140,83 +163,84 @@ class Student {
 // ADMIN CLASS
 // ================================
 class Admin {
+    private Scanner scanner;
+
+    public Admin(Scanner scanner) {
+        this.scanner = scanner;
+    }
 
     public void viewAllItems(ArrayList<Item> items) {
         if (items.isEmpty()) {
-            JOptionPane.showMessageDialog(null, "No items reported yet.");
+            System.out.println("No items reported yet.");
             return;
         }
-        StringBuilder sb = new StringBuilder("--- All Lost & Found Items ---\n");
+        System.out.println("\n--- All Lost & Found Items ---");
         for (Item item : items) {
-            sb.append(item).append("\n");
+            System.out.println(item);
         }
-        JOptionPane.showMessageDialog(null, sb.toString());
     }
 
     public void markItemClaimed(ArrayList<Item> items) {
         if (items.isEmpty()) {
-            JOptionPane.showMessageDialog(null, "No items to mark as claimed.");
+            System.out.println("No items to mark as claimed.");
             return;
         }
 
-        StringBuilder sb = new StringBuilder("--- All Lost & Found Items ---\n");
+        viewAllItems(items);
+
+        int id = getIntInput("Enter the item ID to mark as claimed: ");
+        boolean found = false;
         for (Item item : items) {
-            sb.append(item).append("\n");
-        }
-        JOptionPane.showMessageDialog(null, sb.toString());
-
-        String input = JOptionPane.showInputDialog("Enter the item ID to mark as claimed:");
-        if (input == null) return;
-
-        try {
-            int id = Integer.parseInt(input);
-            boolean found = false;
-            for (Item item : items) {
-                if (item.getId() == id) {
-                    if (item.isClaimed()) {
-                        JOptionPane.showMessageDialog(null, "Item is already claimed.");
-                    } else {
-                        item.markClaimed();
-                        JOptionPane.showMessageDialog(null, "Item marked as claimed!");
-                    }
-                    found = true;
-                    break;
+            if (item.getId() == id) {
+                if (item.isClaimed()) {
+                    System.out.println("Item is already claimed.");
+                } else {
+                    item.markClaimed();
+                    System.out.println("Item marked as claimed!");
                 }
+                found = true;
+                break;
             }
-            if (!found) {
-                JOptionPane.showMessageDialog(null, "No item found with ID " + id);
-            }
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(null, "Invalid ID entered!");
+        }
+        if (!found) {
+            System.out.println("No item found with ID " + id);
         }
     }
 
     public void menu(ArrayList<Item> items) {
         int choice;
         do {
-            String[] options = {"View All Items", "Mark Item as Claimed", "Return to Main Menu"};
-            choice = JOptionPane.showOptionDialog(null,
-                    "--- Admin Menu ---",
-                    "Admin",
-                    JOptionPane.DEFAULT_OPTION,
-                    JOptionPane.INFORMATION_MESSAGE,
-                    null,
-                    options,
-                    options[0]);
+            System.out.println("\n--- Admin Menu ---");
+            System.out.println("1. View All Items");
+            System.out.println("2. Mark Item as Claimed");
+            System.out.println("3. Return to Main Menu");
+
+            choice = getIntInput("Enter choice: ");
 
             switch (choice) {
-                case 0:
+                case 1:
                     viewAllItems(items);
                     break;
-                case 1:
+                case 2:
                     markItemClaimed(items);
                     break;
-                case 2:
-                    JOptionPane.showMessageDialog(null, "Returning to main menu...");
+                case 3:
+                    System.out.println("Returning to main menu...");
                     break;
                 default:
-                    JOptionPane.showMessageDialog(null, "Invalid choice. Try again.");
+                    System.out.println("Invalid choice. Try again.");
             }
-        } while (choice != 2);
+        } while (choice != 3);
+    }
+
+    private int getIntInput(String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            try {
+                return Integer.parseInt(scanner.nextLine());
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid input! Please enter a number.");
+            }
+        }
     }
 }
